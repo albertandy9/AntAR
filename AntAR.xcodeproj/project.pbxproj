@@ -123,6 +123,9 @@
 			);
 			mainGroup = 38C69EDC302B52FA006C0A1B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38C69EE6302B52FA006C0A1B /* Products */;
 			projectDirPath = "";
@@ -356,9 +359,17 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/RealityKitContent;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		38C69EEA302B52FA006C0A1B /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */;
 			productName = RealityKitContent;
 		};
 /* End XCSwiftPackageProductDependency section */
