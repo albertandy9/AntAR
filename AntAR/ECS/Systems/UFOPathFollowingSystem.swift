@@ -40,10 +40,10 @@ public struct UFOPathFollowingSystem: System {
         let gameState = director.components[GameStateComponent.self]?.current,
         let control = director.components[UFOControlComponent.self],
         gameState == .ufoTravelling,
-        let home = context.entities(
+        context.entities(
             matching: Self.homeQuery,
             updatingSystemWhen: .rendering
-        ).first(where: { _ in true }) else {
+        ).first(where: { _ in true }) != nil else {
             return
         }
 
@@ -76,8 +76,7 @@ public struct UFOPathFollowingSystem: System {
             beginRunIfNeeded(
                 follower: &follower,
                 ufo: ufo,
-                tiles: tiles,
-                home: home
+                tiles: tiles
             )
 
             guard follower.state == .following else {
@@ -117,28 +116,18 @@ public struct UFOPathFollowingSystem: System {
                 if simd_distance(ufo.position(relativeTo: nil), target.0.position(relativeTo: nil))
                     <= UFOPathFollowerComponent.arrivalDistance {
                     if target.2.isValidPath {
-                        follower.currentTargetOrder += 1
+                        if target.1.order == tiles.count {
+                            follower.state = .arrived
+                            follower.moveRequested = false
+                            follower.leftMotorPower = 0
+                            follower.rightMotorPower = 0
+                            report(.ufoReachedHome, on: director)
+                        } else {
+                            follower.currentTargetOrder += 1
+                        }
                     } else {
                         stall(&follower, reason: .lightBlockReflectsIR)
                     }
-                }
-            } else if follower.currentTargetOrder == tiles.count + 1 {
-                // The final tile has reached the authored Home's connection radius, so the UFO
-                // can make its short final hop into the nest and complete the experience.
-                driveWithSensorArray(
-                    ufo,
-                    follower: &follower,
-                    toward: home.position(relativeTo: nil),
-                    deltaTime: Float(context.deltaTime),
-                    decision: decision,
-                    throttle: control.throttle
-                )
-
-                if simd_distance(ufo.position(relativeTo: nil), home.position(relativeTo: nil))
-                    <= UFOPathFollowerComponent.arrivalDistance {
-                    follower.state = .arrived
-                    follower.moveRequested = false
-                    report(.ufoReachedHome, on: director)
                 }
             } else {
                 stall(&follower, reason: .noPath)
@@ -151,8 +140,7 @@ public struct UFOPathFollowingSystem: System {
     private func beginRunIfNeeded(
         follower: inout UFOPathFollowerComponent,
         ufo: Entity,
-        tiles: [(Entity, PathTileComponent, IRReflectanceComponent)],
-        home: Entity
+        tiles: [(Entity, PathTileComponent, IRReflectanceComponent)]
     ) {
         // State 10 says the route is available; the local move request says the post-pickup
         // moment has actually occurred. The test UI supplies that request while states 1…9 are
@@ -161,10 +149,7 @@ public struct UFOPathFollowingSystem: System {
             return
         }
 
-        guard let firstTile = tiles.first,
-              let finalTile = tiles.last,
-              simd_distance(finalTile.0.position(relativeTo: nil), home.position(relativeTo: nil))
-                <= UFOPathFollowerComponent.maximumHomeConnectionDistance else {
+        guard let firstTile = tiles.first, !tiles.isEmpty else {
             stall(&follower, reason: .noPath)
             return
         }

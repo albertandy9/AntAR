@@ -20,5 +20,4 @@ public enum GameEvent: String, CaseIterable, Codable, Sendable {
     case requiredPathPlaced
     case ufoMoveRequested
     case ufoReachedHome
-    case ufoResetRequested
 }

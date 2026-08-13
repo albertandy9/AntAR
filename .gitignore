@@ -18,15 +18,7 @@ build/
 .build/
 **/.build/
 **/.swiftpm/
-
-# This branch intentionally does not publish its local Reality Composer Pro package.
-# The team-owned RealityKitContent package must be supplied separately.
-Packages/
-
-# Reality Composer Pro generated/editor-local state
-**/Package.realitycomposerpro/PluginData/
-**/Package.realitycomposerpro/WorkspaceData/
-**/*.rcuserdata
+*.rcuserdata
 
 # Local assistant/tool configuration
 .claude/settings.local*.json

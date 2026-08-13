@@ -61,39 +61,8 @@ public enum GameState: String, CaseIterable, Codable, Sendable {
             .ufoTravelling
         case (.ufoTravelling, .ufoReachedHome):
             .completed
-        case (.completed, .ufoResetRequested):
-            .ufoTravelling
         default:
             nil
-        }
-    }
-
-    /// Placeholder UI copy for the current vertical slice. Final copy belongs in the
-    /// content/localization layer, not in entity or system logic.
-    var instruction: String {
-        switch self {
-        case .scanningTable:
-            "Arahkan kamera ke meja untuk memulai scan"
-        case .antsLeaveFormation:
-            "Perhatikan barisan semut"
-        case .lostAntAtSurfaceOrigin:
-            "Semut terakhir berhenti — ia tersesat"
-        case .lostAntDialogue:
-            "Dengarkan cerita semut"
-        case .ufoAppears:
-            "Cari dan dekati UFO"
-        case .antEntersUFO:
-            "UFO membawa semut"
-        case .blocksScattered:
-            "Lihat sekeliling untuk mencari blok"
-        case .blocksCollected:
-            "Susun blok untuk membuat jalur"
-        case .blocksPlaced:
-            "Jalur siap — jalankan UFO"
-        case .ufoTravelling:
-            "UFO sedang mengikuti jalur"
-        case .completed:
-            "Yay! Semut sudah sampai rumah"
         }
     }
 }

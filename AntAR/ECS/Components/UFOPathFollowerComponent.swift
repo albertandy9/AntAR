@@ -28,7 +28,10 @@ public struct UFOPathFollowerComponent: Component, Codable {
     public var moveRequested: Bool
     public var currentTargetOrder: Int
     public var elapsedTravelTime: Float
+    /// Start position in the travel UFO parent's coordinate space, so AR anchor corrections do
+    /// not invalidate reset behavior.
     public var routeStartPosition: SIMD3<Float>?
+    public var hoverHeight: Float
     public var steeringError: Float
     public var previousSteeringError: Float
     public var lineLostDuration: Float
@@ -43,6 +46,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         currentTargetOrder: Int = 1,
         elapsedTravelTime: Float = 0,
         routeStartPosition: SIMD3<Float>? = nil,
+        hoverHeight: Float = 0.43,
         steeringError: Float = 0,
         previousSteeringError: Float = 0,
         lineLostDuration: Float = 0,
@@ -56,6 +60,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         self.currentTargetOrder = currentTargetOrder
         self.elapsedTravelTime = elapsedTravelTime
         self.routeStartPosition = routeStartPosition
+        self.hoverHeight = max(hoverHeight, 0.05)
         self.steeringError = steeringError
         self.previousSteeringError = previousSteeringError
         self.lineLostDuration = lineLostDuration
@@ -63,9 +68,6 @@ public struct UFOPathFollowerComponent: Component, Codable {
         self.rightMotorPower = rightMotorPower
     }
 
-    /// Authored vertical separation between `finish_ufo` (0.526 m) and the route surface
-    /// (approximately 0.018 m). Keeping this scene-derived value makes the IR rays touch the path.
-    public static let hoverHeight: Float = 0.508
     public static let travelSpeed: Float = 0.20
     public static let arrivalDistance: Float = 0.08
     public static let maximumHomeConnectionDistance: Float = 0.70

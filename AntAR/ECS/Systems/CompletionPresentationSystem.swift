@@ -26,14 +26,6 @@ public struct CompletionPresentationSystem: System {
             return
         }
 
-        if let group = root.antarDescendant(named: AntARSceneNames.completionGroup) {
-            group.isEnabled = true
-        } else {
-            for name in AntARSceneNames.legacyCompletionEntities {
-                root.antarDescendant(named: name)?.isEnabled = true
-            }
-        }
-
         guard let ufo = root.antarDescendant(named: AntARSceneNames.travelUFO),
               let home = context.entities(
                 matching: Self.homeQuery,
@@ -43,8 +35,9 @@ public struct CompletionPresentationSystem: System {
         }
 
         // Keep the final location at the nest even if a completion animation is added later.
-        var finalPosition = home.position(relativeTo: nil)
-        finalPosition.y += UFOPathFollowerComponent.hoverHeight
-        ufo.setPosition(finalPosition, relativeTo: nil)
+        guard let follower = ufo.components[UFOPathFollowerComponent.self] else { return }
+        var finalPosition = home.position(relativeTo: ufo.parent)
+        finalPosition.y += follower.hoverHeight
+        ufo.setPosition(finalPosition, relativeTo: ufo.parent)
     }
 }

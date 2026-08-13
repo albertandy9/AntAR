@@ -6,11 +6,7 @@
 import Foundation
 import RealityKit
 
-/// Runtime state attached exactly once, to the non-visual `GameDirector` entity.
-///
-/// This is the ECS home for the `GameState` enum. Feature entities keep their own focused
-/// components (for example `UFOStateComponent` or `PathTileComponent`) and report a `GameEvent`
-/// when they complete a global story beat.
+
 public struct GameStateComponent: Component, Codable {
     public private(set) var current: GameState
     public private(set) var previous: GameState?

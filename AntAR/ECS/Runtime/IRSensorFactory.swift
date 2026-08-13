@@ -16,7 +16,7 @@ enum IRSensorFactory {
     private static let impactGlowName = "IRImpactGlow"
     private static let wavefrontCount = 4
 
-    static func rebuildSensors(on ufo: Entity, sensorCount: Int) {
+    static func rebuildSensors(on ufo: Entity, sensorCount: Int, sensorRange: Float) {
         ufo.children
             .filter { $0.components[IRSensorComponent.self] != nil }
             .forEach { $0.removeFromParent() }
@@ -33,7 +33,7 @@ enum IRSensorFactory {
                 IRSensorComponent(
                     index: index,
                     lateralOffset: lateralOffset,
-                    range: UFOPathFollowerComponent.hoverHeight
+                    range: sensorRange
                 )
             )
             sensor.addChild(makeSensorLight(sensorCount: sensorCount))
@@ -41,7 +41,7 @@ enum IRSensorFactory {
                 sensor.addChild(makeWavefront(index: waveIndex, isReturn: false))
                 sensor.addChild(makeWavefront(index: waveIndex, isReturn: true))
             }
-            sensor.addChild(makeImpactGlow())
+            sensor.addChild(makeImpactGlow(range: sensorRange))
             ufo.addChild(sensor)
         }
     }
@@ -128,13 +128,13 @@ enum IRSensorFactory {
         return entity
     }
 
-    private static func makeImpactGlow() -> ModelEntity {
+    private static func makeImpactGlow(range: Float) -> ModelEntity {
         let entity = ModelEntity(
             mesh: .generateCylinder(height: 0.0018, radius: 0.014),
             materials: [redMaterial(alpha: 0.38)]
         )
         entity.name = impactGlowName
-        entity.position.y = -UFOPathFollowerComponent.hoverHeight
+        entity.position.y = -range
         entity.components.set(IRBeamVisualComponent())
         return entity
     }
