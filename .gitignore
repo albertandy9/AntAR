@@ -1,0 +1,38 @@
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode generated and per-user state
+DerivedData/
+build/
+*.xcuserstate
+**/xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager local state
+.build/
+**/.build/
+**/.swiftpm/
+
+# This branch intentionally does not publish its local Reality Composer Pro package.
+# The team-owned RealityKitContent package must be supplied separately.
+Packages/
+
+# Reality Composer Pro generated/editor-local state
+**/Package.realitycomposerpro/PluginData/
+**/Package.realitycomposerpro/WorkspaceData/
+**/*.rcuserdata
+
+# Local assistant/tool configuration
+.claude/settings.local*.json
+
+# Logs and temporary editor files
+*.log
+*.swp
+*.swo
+*~

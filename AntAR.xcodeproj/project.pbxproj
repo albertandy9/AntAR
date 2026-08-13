@@ -124,7 +124,7 @@
 			mainGroup = 38C69EDC302B52FA006C0A1B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */,
+				A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 38C69EE6302B52FA006C0A1B /* Products */;
@@ -164,7 +164,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KYNR7TZ589;
+				DEVELOPMENT_TEAM = 9G77XRDUT8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
@@ -193,7 +193,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = KYNR7TZ589;
+				DEVELOPMENT_TEAM = 9G77XRDUT8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
@@ -360,7 +360,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */ = {
+		A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/RealityKitContent;
 		};
@@ -369,7 +369,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		38C69EEA302B52FA006C0A1B /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "RealityKitContent" */;
+			package = A1B2C3D4E5F60718293A4B5C /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */;
 			productName = RealityKitContent;
 		};
 /* End XCSwiftPackageProductDependency section */
