@@ -1,0 +1,30 @@
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode generated and per-user state
+DerivedData/
+build/
+*.xcuserstate
+**/xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager local state
+.build/
+**/.build/
+**/.swiftpm/
+*.rcuserdata
+
+# Local assistant/tool configuration
+.claude/settings.local*.json
+
+# Logs and temporary editor files
+*.log
+*.swp
+*.swo
+*~
