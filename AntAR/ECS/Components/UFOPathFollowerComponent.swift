@@ -26,6 +26,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
     public var stallReason: UFOStallReason?
     public var sensorCount: Int
     public var moveRequested: Bool
+    public var completionReported: Bool
     public var currentTargetOrder: Int
     public var elapsedTravelTime: Float
     /// Start position in the travel UFO parent's coordinate space, so AR anchor corrections do
@@ -43,6 +44,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         stallReason: UFOStallReason? = nil,
         sensorCount: Int = 2,
         moveRequested: Bool = false,
+        completionReported: Bool = false,
         currentTargetOrder: Int = 1,
         elapsedTravelTime: Float = 0,
         routeStartPosition: SIMD3<Float>? = nil,
@@ -57,6 +59,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         self.stallReason = stallReason
         self.sensorCount = min(max(sensorCount, IRSensorLayout.minimumCount), IRSensorLayout.maximumCount)
         self.moveRequested = moveRequested
+        self.completionReported = completionReported
         self.currentTargetOrder = currentTargetOrder
         self.elapsedTravelTime = elapsedTravelTime
         self.routeStartPosition = routeStartPosition

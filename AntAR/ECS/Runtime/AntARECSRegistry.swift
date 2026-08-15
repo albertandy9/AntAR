@@ -35,6 +35,7 @@ enum AntARECSRegistry {
         IRSensorComponent.registerComponent()
         IRSensorArrayComponent.registerComponent()
         IRBeamVisualComponent.registerComponent()
+        BlockPlacementGuideComponent.registerComponent()
 
         GameStateMachineSystem.registerSystem()
         SurfaceDetectionSystem.registerSystem()
@@ -45,6 +46,7 @@ enum AntARECSRegistry {
         AntBoardSystem.registerSystem()
         UFOAscendSystem.registerSystem()
         BlockAppearanceSystem.registerSystem()
+        BlockPlacementGuideSystem.registerSystem()
         BlockProximitySystem.registerSystem()
         IRSimulationSystem.registerSystem()
         UFOControlSystem.registerSystem()

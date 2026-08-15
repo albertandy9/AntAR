@@ -27,7 +27,7 @@ public struct UFOControlSystem: System {
             updatingSystemWhen: .rendering
         ).first(where: { _ in true }),
         var control = director.components[UFOControlComponent.self],
-        director.components[GameStateComponent.self]?.current == .ufoTravelling,
+        director.components[GameStateComponent.self]?.current.supportsRouteBuilding == true,
         let ufo = context.entities(
             matching: Self.ufoQuery,
             updatingSystemWhen: .rendering
@@ -46,6 +46,7 @@ public struct UFOControlSystem: System {
             follower.state = .idle
             follower.stallReason = nil
             follower.moveRequested = true
+            follower.completionReported = false
             follower.currentTargetOrder = 1
             follower.elapsedTravelTime = 0
             follower.steeringError = 0

@@ -39,7 +39,7 @@ public struct UFOPathFollowingSystem: System {
         ).first(where: { _ in true }),
         let gameState = director.components[GameStateComponent.self]?.current,
         let control = director.components[UFOControlComponent.self],
-        gameState == .ufoTravelling,
+        gameState.supportsRouteBuilding,
         context.entities(
             matching: Self.homeQuery,
             updatingSystemWhen: .rendering
@@ -63,6 +63,20 @@ public struct UFOPathFollowingSystem: System {
         for ufo in context.entities(matching: Self.ufoQuery, updatingSystemWhen: .rendering) {
             guard var follower = ufo.components[UFOPathFollowerComponent.self],
                   let sensorArray = ufo.components[IRSensorArrayComponent.self] else {
+                continue
+            }
+
+            // The UFO may reach the fifth block before the story state machine has consumed the
+            // collection/placement events. Remember arrival locally, then publish completion once
+            // the canonical state reaches `.ufoTravelling`.
+            if follower.state == .arrived {
+                if gameState == .ufoTravelling, !follower.completionReported {
+                    report(.ufoReachedHome, on: director)
+                    follower.completionReported = true
+                }
+                follower.leftMotorPower = 0
+                follower.rightMotorPower = 0
+                ufo.components[UFOPathFollowerComponent.self] = follower
                 continue
             }
 
@@ -116,21 +130,31 @@ public struct UFOPathFollowingSystem: System {
                 if simd_distance(ufo.position(relativeTo: nil), target.0.position(relativeTo: nil))
                     <= UFOPathFollowerComponent.arrivalDistance {
                     if target.2.isValidPath {
-                        if target.1.order == tiles.count {
+                        if target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
                             follower.state = .arrived
                             follower.moveRequested = false
                             follower.leftMotorPower = 0
                             follower.rightMotorPower = 0
-                            report(.ufoReachedHome, on: director)
-                        } else {
+                            if gameState == .ufoTravelling, !follower.completionReported {
+                                report(.ufoReachedHome, on: director)
+                                follower.completionReported = true
+                            }
+                        } else if tiles.contains(where: { $0.1.order == target.1.order + 1 }) {
                             follower.currentTargetOrder += 1
+                        } else {
+                            waitForNextTile(&follower, after: target.1.order)
                         }
                     } else {
                         stall(&follower, reason: .lightBlockReflectsIR)
                     }
                 }
             } else {
-                stall(&follower, reason: .noPath)
+                // A missing next order is normal while the learner is still constructing the
+                // route. Remain on the last completed tile rather than treating it as failure.
+                follower.state = .idle
+                follower.moveRequested = false
+                follower.leftMotorPower = 0
+                follower.rightMotorPower = 0
             }
 
             ufo.components[UFOPathFollowerComponent.self] = follower
@@ -142,22 +166,25 @@ public struct UFOPathFollowingSystem: System {
         ufo: Entity,
         tiles: [(Entity, PathTileComponent, IRReflectanceComponent)]
     ) {
-        // State 10 says the route is available; the local move request says the post-pickup
-        // moment has actually occurred. The test UI supplies that request while states 1…9 are
-        // intentionally absent from this focused build.
+        // A placement requests movement immediately. `currentTargetOrder` remembers where an
+        // incremental route stopped, so adding block 2 continues from block 1 instead of sending
+        // the UFO back to the beginning.
         guard follower.state == .idle, follower.moveRequested else {
             return
         }
 
-        guard let firstTile = tiles.first, !tiles.isEmpty else {
-            stall(&follower, reason: .noPath)
+        guard let nextTile = tiles.first(where: {
+            $0.1.order == follower.currentTargetOrder
+        }) else {
+            follower.moveRequested = false
+            follower.leftMotorPower = 0
+            follower.rightMotorPower = 0
             return
         }
 
         follower.state = .following
         follower.stallReason = nil
         follower.moveRequested = false
-        follower.currentTargetOrder = firstTile.1.order
         follower.elapsedTravelTime = 0
         follower.steeringError = 0
         follower.previousSteeringError = 0
@@ -167,7 +194,7 @@ public struct UFOPathFollowingSystem: System {
 
         // Keep the authored handoff position, but align the chassis with the beginning of the
         // route exactly as a physical robot is placed facing its line before its motors start.
-        face(ufo, toward: firstTile.0.position(relativeTo: nil))
+        face(ufo, toward: nextTile.0.position(relativeTo: nil))
     }
 
     /// Proportional-derivative steering expressed as differential left/right motor power.
@@ -259,6 +286,15 @@ public struct UFOPathFollowingSystem: System {
         follower.state = .stalled
         follower.stallReason = reason
         follower.moveRequested = false
+    }
+
+    private func waitForNextTile(_ follower: inout UFOPathFollowerComponent, after order: Int) {
+        follower.state = .idle
+        follower.stallReason = nil
+        follower.moveRequested = false
+        follower.currentTargetOrder = order + 1
+        follower.leftMotorPower = 0
+        follower.rightMotorPower = 0
     }
 
     private func report(_ event: GameEvent, on director: Entity) {
