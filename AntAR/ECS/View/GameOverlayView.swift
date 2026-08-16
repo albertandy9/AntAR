@@ -9,11 +9,22 @@ import SwiftUI
 struct GameOverlayView: View {
     let state: GameState
     let isTableReadyToPlace: Bool
+    let lostAntGreetPhase: LostAntGreetPhase?
+    let isCoachingOverlayActive: Bool
+    let isSurfaceTooSmall: Bool
 
     var body: some View {
         switch state {
         case .scanningTable:
-            ScanningTableView(isReadyToPlace: isTableReadyToPlace)
+            // Hidden while ARCoachingOverlayView is up so the native "move device to find a
+            // surface" UI and this custom reticle are sequenced, not both visible at once.
+            if !isCoachingOverlayActive {
+                ScanningTableView(isReadyToPlace: isTableReadyToPlace, isSurfaceTooSmall: isSurfaceTooSmall)
+            }
+        case .antsLeaveFormation:
+            CaptionPill(text: "Mundur sedikit, barisan semut mau lewat")
+        case .lostAntDialogue:
+            LostAntDialogueView(phase: lostAntGreetPhase)
         case .ufoAppears:
             UFOAppearsView()
         case .antEntersUFO:

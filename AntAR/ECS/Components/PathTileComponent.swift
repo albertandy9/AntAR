@@ -5,7 +5,6 @@
 
 import RealityKit
 
-/// Runtime data for one of the four reusable, scene-authored route tiles.
 public struct PathTileComponent: Component, Codable {
     public var order: Int
     public var isPlaced: Bool

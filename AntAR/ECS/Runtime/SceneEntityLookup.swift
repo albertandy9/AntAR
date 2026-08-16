@@ -20,12 +20,4 @@ extension Entity {
         }
         return nil
     }
-
-    /// Includes disabled descendants and is intended for scene-level concerns such as phase
-    /// visibility. Gameplay systems should continue using `EntityQuery` for their live entities.
-    func antarDescendants() -> [Entity] {
-        children.flatMap { child in
-            [child] + child.antarDescendants()
-        }
-    }
 }

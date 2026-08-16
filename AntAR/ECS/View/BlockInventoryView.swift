@@ -2,15 +2,6 @@
 //  BlockInventoryView.swift
 //  AntAR
 //
-//  2D SwiftUI overlay (not part of the AR world) showing every block collected so far, in the
-//  order they were tapped. Simple row of colored squares, each one overlapping the previous by a
-//  few points to read as a "pile" growing as more blocks come in.
-//
-//  Each square is draggable (verified against the SDK: String already conforms to Transferable,
-//  so dragging block.id directly needs no custom Transferable type). ContentView's RealityView
-//  is the drop target — dropping anywhere on the AR view places that block's real 3D entity in
-//  front of the UFO, see ARExperienceViewModel.placeBlockInFrontOfUFO(blockID:).
-//
 
 import SwiftUI
 

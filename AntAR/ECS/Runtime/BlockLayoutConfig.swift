@@ -13,7 +13,6 @@ enum BlockLayoutConfig {
         let positionOverride: SIMD3<Float>?
     }
 
-    // TUNABLE — one entry per Block1...Block7.
     static let entries: [Entry] = [
         Entry(name: "Block1", color: .systemRed, positionOverride: nil),
         Entry(name: "Block2", color: .systemOrange, positionOverride: nil),

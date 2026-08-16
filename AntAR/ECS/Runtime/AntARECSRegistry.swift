@@ -35,6 +35,8 @@ enum AntARECSRegistry {
         IRSensorComponent.registerComponent()
         IRSensorArrayComponent.registerComponent()
         IRBeamVisualComponent.registerComponent()
+        AntWalkComponent.registerComponent()
+        LostAntGreetComponent.registerComponent()
 
         GameStateMachineSystem.registerSystem()
         SurfaceDetectionSystem.registerSystem()
@@ -50,5 +52,7 @@ enum AntARECSRegistry {
         UFOControlSystem.registerSystem()
         UFOPathFollowingSystem.registerSystem()
         CompletionPresentationSystem.registerSystem()
+        AntWalkSystem.registerSystem()
+        LostAntGreetSystem.registerSystem()
     }
 }

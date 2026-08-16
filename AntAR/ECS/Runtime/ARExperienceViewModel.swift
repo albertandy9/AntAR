@@ -16,6 +16,8 @@ import UIKit
 final class ARExperienceViewModel {
     var gameState: GameState = .scanningTable
     var isTableReadyToPlace = false
+    var isCoachingOverlayActive = true
+    private(set) var hasFoundUndersizedTable = false
     var sensorCount = 2
     var irLineActivations: [Float] = Array(repeating: 0, count: 2)
     var isIRLineDetected = false
@@ -23,26 +25,35 @@ final class ARExperienceViewModel {
     var leftMotorPower: Float = 0
     var rightMotorPower: Float = 0
     var isGasPedalPressed = false
+    
+    private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
+    private(set) var ufoDirection: CGVector?
 
-    /// Every block collected so far, in tap order — drives BlockInventoryView. Nothing in the AR
-    /// scene reads this back; it exists purely for the 2D SwiftUI tray.
+
     private(set) var collectedBlocks: [CollectedBlock] = []
 
-    // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its
-    // transform (for `unproject(...ontoPlane:)`) to convert a 2D tap into a 3D table point.
+    // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its transform
+    // to ray-plane-intersect a 2D tap into a 3D table point (ContentView.intersect(ray:withPlane:)).
     let scannedTable = AnchorEntity(
         .plane(.horizontal, classification: .table, minimumBounds: SIMD2<Float>(repeating: 0.25))
     )
 
+    // Same .table classification as scannedTable, but a much smaller minimumBounds — used only to
+    // tell "found a table-shaped surface that's currently too small" apart from "haven't found a
+    // table at all." As the user keeps moving the phone over more of the real surface, ARKit
+    // extends its estimate of the same underlying plane, so this and scannedTable both track the
+    // same real-world plane growing, just anchor at different size thresholds.
+    private let looselySizedTable = AnchorEntity(.plane(.horizontal, classification: .table, minimumBounds: SIMD2<Float>(repeating: 0.05)))
+
     private let cameraAnchor = AnchorEntity(.camera)
     private let experienceRoot = AnchorEntity(world: .zero)
     private let gameDirector = Entity()
-    private var trackingSession: SpatialTrackingSession?
     private var hasAddedScene = false
     private var hasPlacedAnchor = false
     private var hasSpawnedUFO = false
-    private var hasRevealedAnt = false
+    private var hasStartedAntsLeaveFormation = false
+    private var hasStartedLostAntGreet = false
     private var hasStartedAntBoarding = false
     private var hasStartedUFOAscend = false
     private var hasSpawnedBlocks = false
@@ -56,6 +67,8 @@ final class ARExperienceViewModel {
     nonisolated(unsafe) private var stateObserver: NSObjectProtocol?
     @ObservationIgnored
     nonisolated(unsafe) private var hapticObserver: NSObjectProtocol?
+    @ObservationIgnored
+    nonisolated(unsafe) private var lostAntGreetObserver: NSObjectProtocol?
 
     init() {
         AntARECSRegistry.register()
@@ -86,7 +99,11 @@ final class ARExperienceViewModel {
 
             Task { @MainActor [weak self] in
                 self?.gameState = state
-                if state == .ufoAppears {
+                if state == .antsLeaveFormation {
+                    self?.beginAntsLeaveFormationIfNeeded()
+                } else if state == .lostAntDialogue {
+                    self?.beginLostAntGreetIfNeeded()
+                } else if state == .ufoAppears {
                     self?.spawnUFOIfNeeded()
                 } else if state == .antEntersUFO {
                     self?.beginAntBoardingIfNeeded()
@@ -125,6 +142,18 @@ final class ARExperienceViewModel {
             generator.prepare()
             generator.impactOccurred(intensity: CGFloat(intensity))
         }
+
+        lostAntGreetObserver = NotificationCenter.default.addObserver(
+            forName: .lostAntGreetPhaseDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let rawValue = notification.userInfo?[LostAntGreetNotificationKey.phase] as? String,
+                  let phase = LostAntGreetPhase(rawValue: rawValue) else {
+                return
+            }
+            self?.lostAntGreetPhase = phase
+        }
     }
 
     deinit {
@@ -134,25 +163,28 @@ final class ARExperienceViewModel {
         if let hapticObserver {
             NotificationCenter.default.removeObserver(hapticObserver)
         }
+        if let lostAntGreetObserver {
+            NotificationCenter.default.removeObserver(lostAntGreetObserver)
+        }
     }
 
-    func setUpScene(in content: RealityViewCameraContent) {
+    // ARView (in ARViewContainer) owns the ARSession directly now, so this attaches anchors to its
+    // RealityKit.Scene via addAnchor(_:) instead of RealityViewCameraContent's add(_:).
+    func setUpScene(in scene: RealityKit.Scene) {
         guard !hasAddedScene else { return }
-        content.add(experienceRoot)
-        content.add(scannedTable)
-        content.add(cameraAnchor)
+        scene.addAnchor(experienceRoot)
+        scene.addAnchor(scannedTable)
+        scene.addAnchor(looselySizedTable)
+        scene.addAnchor(cameraAnchor)
         hasAddedScene = true
     }
 
-    func startTracking() async {
-        let session = SpatialTrackingSession()
-        let configuration = SpatialTrackingSession.Configuration(
-            tracking: [.plane],
-            camera: .back
-        )
 
-        _ = await session.run(configuration)
-        trackingSession = session
+    private var tableScanOverlay: Entity?
+
+    func addTableScanOverlay(_ entity: Entity) {
+        experienceRoot.addChild(entity)
+        tableScanOverlay = entity
     }
 
     /// Entry point for future systems/adapters that are not themselves RealityKit systems.
@@ -162,54 +194,48 @@ final class ARExperienceViewModel {
         gameDirector.components[GameEventComponent.self] = events
     }
 
-    /// Call every frame from ContentView's `SceneEvents.Update` subscription. Cheap no-op once
-    /// already true, so polling it every frame is fine.
+
     func refreshSurfaceReadiness() {
         guard !isTableReadyToPlace else { return }
         isTableReadyToPlace = scannedTable.components[SurfaceAnchorComponent.self]?.isLocked ?? false
+    }
+
+
+    func refreshUndersizedTableDetected() {
+        guard !hasFoundUndersizedTable else { return }
+        hasFoundUndersizedTable = looselySizedTable.isAnchored
     }
 
     func confirmPlacement(at worldPoint: SIMD3<Float>) {
         guard isTableReadyToPlace, !hasPlacedAnchor else { return }
         hasPlacedAnchor = true
 
+        // The LiDAR scan overlay's job was purely "confirm a surface was found" during the
+        // Tap-untuk-Memindai wait — gone the instant the user actually taps, same moment
+        // everything else in this method starts building the real placed scene.
+        tableScanOverlay?.removeFromParent()
+        tableScanOverlay = nil
+
         let anchor = Entity()
         anchor.name = "PlacementAnchor"
-        // Parented to scannedTable (continuously corrected by ARKit's plane tracking), not
-        // experienceRoot (raw, uncorrected world .zero) — otherwise everything built on this
-        // anchor visibly drifts/reorients whenever ARKit corrects its pose estimate, which
-        // happens more often in small/feature-poor rooms.
-        //
-        // BUG TO AVOID: addChild(_:preservingWorldTransform:) defaults to false. Calling
-        // setPosition(worldPoint, relativeTo: nil) BEFORE addChild would set anchor's local
-        // transform directly (since it has no parent yet), and that local offset would then get
-        // applied on top of scannedTable's own real, non-identity transform once parented —
-        // landing anchor in the wrong place, not at the tapped point. addChild has to happen
-        // first, so relativeTo: nil below correctly resolves against true world space and
-        // RealityKit computes the right local offset from scannedTable's current transform.
+
         scannedTable.addChild(anchor)
         anchor.setPosition(worldPoint, relativeTo: nil)
+
+
+        let cameraPosition = cameraAnchor.position(relativeTo: nil)
+        var facing = SIMD3<Float>(worldPoint.x - cameraPosition.x, 0, worldPoint.z - cameraPosition.z)
+        facing = simd_length(facing) > 0.0001 ? normalize(facing) : SIMD3<Float>(0, 0, -1)
+        let right = normalize(cross(facing, SIMD3<Float>(0, 1, 0)))
+        anchor.setOrientation(simd_quatf(from: SIMD3<Float>(1, 0, 0), to: right), relativeTo: nil)
+
         placementAnchor = anchor
 
-        // Kick off loading the master scene as soon as we know where it should sit (the tapped
-        // anchor) — by the time any state actually needs an entity from it, it's likely already
-        // loaded. loadMasterSceneIfNeeded() is itself idempotent/guarded, so this is safe even if
-        // something else also triggers a load before this finishes.
+
         Task { await loadMasterSceneIfNeeded() }
 
-        report(.surfaceLocked)
 
-        // THIS IS WHAT I NEED TO CHANGED LATER — fast-forwards straight through
-        // .antsLeaveFormation / .lostAntAtSurfaceOrigin / .lostAntDialogue to land on
-        // .ufoAppears, since the systems that should genuinely report .otherAntsExited,
-        // .lostAntReachedOrigin, and .lostAntDialogueDismissed don't exist yet. GameStateMachine
-        // System only consumes one queued event per frame, so this walks the *real* transition
-        // table (GameState.transition(for:), untouched) one step per frame instead of skipping
-        // it — each of these three should eventually be reported by its own real system instead
-        // of being queued back-to-back here.
-        report(.otherAntsExited)
-        report(.lostAntReachedOrigin)
-        report(.lostAntDialogueDismissed)
+        report(.surfaceLocked)
     }
 
 
@@ -220,10 +246,7 @@ final class ARExperienceViewModel {
         }
 
         let task = Task { @MainActor [weak self] in
-            // Requires placementAnchor to already exist — in practice it always does by the time
-            // this runs, since loadMasterSceneIfNeeded() is only ever called from confirmPlacement
-            // (which sets placementAnchor first) or from state-triggered spawn methods that can
-            // only fire after confirmPlacement has already advanced GameState past .scanningTable.
+
             guard let self, let placementAnchor = self.placementAnchor else { return }
 
             guard let scene = try? await Entity(named: "Scene", in: realityKitContentBundle) else {
@@ -237,13 +260,7 @@ final class ARExperienceViewModel {
                 child.isEnabled = false
             }
 
-            // Child of placementAnchor (not experienceRoot) — it now inherits every correction
-            // placementAnchor itself inherits from scannedTable's continuous plane tracking.
-            // Explicitly zeroed relative to placementAnchor rather than relying on whatever
-            // default local transform the loaded "Scene" wrapper happens to carry — addChild's
-            // preservingWorldTransform defaults to false, so without this, scene would keep
-            // whatever local transform it loaded with instead of sitting exactly at
-            // placementAnchor's origin.
+
             placementAnchor.addChild(scene)
             scene.setPosition(.zero, relativeTo: placementAnchor)
 
@@ -283,6 +300,43 @@ final class ARExperienceViewModel {
         ufo.components.set(InputTargetComponent())
     }
 
+    func refreshUFODirectionIndicator() {
+        guard gameState == .ufoAppears,
+              let masterScene,
+              let ufo = masterScene.findEntity(named: "ufo_angkat_semut"),
+              ufo.components[UFODescendComponent.self] == nil else {
+            ufoDirection = nil
+            return
+        }
+
+        let cameraPosition = cameraAnchor.position(relativeTo: nil)
+        let toUFO = ufo.position(relativeTo: nil) - cameraPosition
+        guard simd_length(toUFO) > 0.0001 else {
+            ufoDirection = nil
+            return
+        }
+        let direction = normalize(toUFO)
+
+
+        let cameraForward = cameraAnchor.convert(direction: SIMD3<Float>(0, 0, -1), to: nil)
+        let onScreenCosThreshold: Float = cos(28 * .pi / 180)
+        guard dot(direction, cameraForward) <= onScreenCosThreshold else {
+            ufoDirection = nil
+            return
+        }
+
+        let cameraRight = cameraAnchor.convert(direction: SIMD3<Float>(1, 0, 0), to: nil)
+        let cameraUp = cameraAnchor.convert(direction: SIMD3<Float>(0, 1, 0), to: nil)
+        // SwiftUI screen space is y-down; camera "up" is y-up, hence the negation.
+        var dx = Double(dot(direction, cameraRight))
+        var dy = Double(-dot(direction, cameraUp))
+        if abs(dx) < 0.0001, abs(dy) < 0.0001 {
+
+            dx = 1
+        }
+        ufoDirection = CGVector(dx: dx, dy: dy)
+    }
+
     func handleUFOTapped(_ tappedEntity: Entity) {
         guard let masterScene, let ufo = masterScene.findEntity(named: "ufo_angkat_semut") else { return }
         guard isEntity(tappedEntity, partOf: ufo) else { return }
@@ -292,9 +346,6 @@ final class ARExperienceViewModel {
         let start = ufo.position(relativeTo: nil)
         let end = target.position(relativeTo: nil)
         ufo.components.set(UFODescendComponent(startPosition: start, targetPosition: end))
-
-
-        revealAntIfNeeded()
     }
 
 
@@ -313,49 +364,67 @@ final class ARExperienceViewModel {
         Task { await beginAntBoarding() }
     }
 
-    /// Step 4 (Attach Component to an Entity). RC PRO <-> CODE HOOKUP: "ant_noanthena" (the lost
-    /// ant — no antenna, matching the app's own premise) and "finish_ant_noanthena" (its original
-    /// walking-finish marker) are both children of Root inside Scene.usda, already part of
-    /// `masterScene` once loaded, both hidden like everything else in it. Called as soon as the
-    /// UFO is tapped (see handleUFOTapped), not once .antEntersUFO is reached — so the ant reads
-    /// as already waiting there while the UFO comes down, rather than appearing out of nowhere.
-    ///
-    /// THIS IS WHAT I NEED TO CHANGED LATER: this treats "finish_ant_noanthena" as simply "where
-    /// the ant already is," because .antsLeaveFormation / .lostAntAtSurfaceOrigin (the phases
-    /// where the ant would actually walk there) are still fast-forwarded — see
-    /// confirmPlacement()'s own "CHANGED LATER" note, this is the same gap. Once those are for
-    /// real built, the ant will already be visible and correctly positioned at
-    /// finish_ant_noanthena from actual gameplay well before the UFO is even tapped — at that
-    /// point, remove this method's `ant.isEnabled = true` / `ant.setPosition(...)` lines (they'd
-    /// be redundant, and re-positioning an ant that's mid-walk-animation would visibly snap it),
-    /// and beginAntBoarding() below can just read whichever ant entity that earlier phase leaves
-    /// behind instead of relying on this having run first.
-    ///
-    /// Falls back to silently doing nothing if the scene or either named entity can't be found,
-    /// so a missing/misnamed asset doesn't crash the app.
-    private func revealAntIfNeeded() {
-        guard !hasRevealedAnt else { return }
-        hasRevealedAnt = true
-        Task { await revealAnt() }
+    private func beginAntsLeaveFormationIfNeeded() {
+        guard !hasStartedAntsLeaveFormation else { return }
+        hasStartedAntsLeaveFormation = true
+        Task { await beginAntsLeaveFormation() }
     }
 
-    private func revealAnt() async {
+    /// Step 4 (Attach Component to an Entity). RC PRO <-> CODE HOOKUP: ant1...ant4 and
+    /// ant_noanthena, and their finish_ant1...finish_ant4 / finish_ant_noanthena markers, are all
+    /// children of Root inside Scene.usda (checked directly in the file), already part of
+    /// `masterScene` once loaded — like every top-level child of Root, they start disabled (see
+    /// loadMasterSceneIfNeeded()), so each ant is explicitly re-enabled here before
+    /// AntWalkComponent is attached; AntWalkSystem does the actual walking, animation, and (for
+    /// ant_noanthena only) staying visible once arrived.
+    ///
+    /// Triggered by `.antsLeaveFormation` (see the state observer above) — the very first real
+    /// state after the user taps to confirm placement.
+    ///
+    /// Falls back to silently skipping any ant whose entity or marker can't be found, so a
+    /// missing/misnamed asset doesn't crash the app or block the other four.
+    private func beginAntsLeaveFormation() async {
         await loadMasterSceneIfNeeded()
-        guard let masterScene,
-              let ant = masterScene.findEntity(named: "ant_noanthena"),
-              let origin = masterScene.findEntity(named: "finish_ant_noanthena") else {
-            return
-        }
+        guard let masterScene else { return }
 
-        ant.isEnabled = true
-        ant.setPosition(origin.position(relativeTo: nil), relativeTo: nil)
-        ant.components.set(OpacityComponent(opacity: 1))
+        for entry in AntFormationConfig.entries {
+            guard let ant = masterScene.findEntity(named: entry.antName),
+                  let finish = masterScene.findEntity(named: entry.finishName) else {
+                continue
+            }
+
+            ant.isEnabled = true
+
+            let start = ant.position(relativeTo: nil)
+            let target = finish.position(relativeTo: nil)
+            ant.components.set(
+                AntWalkComponent(startPosition: start, targetPosition: target, disappearsOnArrival: entry.disappearsOnArrival)
+            )
+        }
     }
 
-    /// Triggered by `.antEntersUFO` (see the state observer above) — by this point the UFO has
-    /// finished descending and revealAnt() (triggered earlier, at tap time) has already made the
-    /// ant visible, so this only needs to attach AntBoardComponent to start the rise-and-fade.
-    /// Falls back to silently doing nothing if the scene or either named entity can't be found.
+    private func beginLostAntGreetIfNeeded() {
+        guard !hasStartedLostAntGreet else { return }
+        hasStartedLostAntGreet = true
+        Task { await beginLostAntGreet() }
+    }
+
+
+    private func beginLostAntGreet() async {
+        await loadMasterSceneIfNeeded()
+        guard let masterScene, let ant = masterScene.findEntity(named: "ant_noanthena") else { return }
+
+        let rest = ant.position(relativeTo: nil)
+
+
+        ant.components.set(OpacityComponent(opacity: 1))
+        ant.components.set(LostAntGreetComponent(restPosition: rest, risenPosition: rest))
+
+
+        lostAntGreetPhase = .arrived
+    }
+
+
     private func beginAntBoarding() async {
         await loadMasterSceneIfNeeded()
         guard let masterScene,
@@ -366,6 +435,8 @@ final class ARExperienceViewModel {
 
         let start = ant.position(relativeTo: nil)
         let target = ufo.position(relativeTo: nil)
+
+        ant.components.set(OpacityComponent(opacity: 1))
         ant.components.set(AntBoardComponent(startPosition: start, targetPosition: target))
     }
 
@@ -375,22 +446,7 @@ final class ARExperienceViewModel {
         Task { await beginUFOAscend() }
     }
 
-    /// Step 4 (Attach Component to an Entity). RC PRO <-> CODE HOOKUP: "ufo_jalan" is a separate
-    /// entity from "ufo_angkat_semut" (different reference — UFO.usda vs friendly_ufo.usdz,
-    /// checked directly in Scene.usda) meant for the later travelling phase. Both are already
-    /// part of `masterScene`, hidden like everything else in it.
-    ///
-    /// Triggered by `.blocksScattered` (see the state observer above) — "ufo_angkat_semut" rises
-    /// from wherever it currently is (finish_ufo, after descending) to ufo_jalan's own position
-    /// and fades out (UFOAscendSystem), and only once that's actually finished does this reveal
-    /// "ufo_jalan" — waiting out UFOAscendComponent.duration rather than revealing it
-    /// immediately, so it reads as "ufo_jalan appears once the other one is gone," not both UFOs
-    /// visible at once. No GameEvent involved here — see UFOAscendSystem's header comment for
-    /// why: this moment doesn't correspond to any of the 11 story beats, so there's nothing to
-    /// report to GameStateMachineSystem, and the state stays `.blocksScattered` throughout.
-    ///
-    /// Falls back to silently doing nothing if the scene or either named entity can't be found,
-    /// so a missing/misnamed asset doesn't crash the app.
+
     private func beginUFOAscend() async {
         await loadMasterSceneIfNeeded()
         guard let masterScene,
@@ -545,8 +601,7 @@ final class ARExperienceViewModel {
         isGasPedalPressed = pressed
     }
 
-    /// Sends a reset request to the state-10 ECS control system. The canonical global state/event
-    /// table remains the incoming branch's source of truth and receives no reverse transition.
+
     func requestUFOReset() {
         guard gameState == .ufoTravelling,
               var control = gameDirector.components[UFOControlComponent.self] else {
@@ -577,7 +632,6 @@ final class ARExperienceViewModel {
         )
     }
 
-    /// Called by the incoming RealityView update subscription; no second timer/session is added.
     func refreshIRTelemetry() {
         guard let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
               let readings = ufo.components[IRSensorArrayComponent.self],
