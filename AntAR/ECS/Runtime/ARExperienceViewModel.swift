@@ -23,6 +23,9 @@ final class ARExperienceViewModel {
     var leftMotorPower: Float = 0
     var rightMotorPower: Float = 0
     var isGasPedalPressed = false
+    var isInspectingUFO = false
+    var isFinishingUFOInspection = false
+    var ufoInspectionScreenPosition: CGPoint?
     private(set) var placementAnchor: Entity?
 
     /// Every block collected so far, in tap order — drives BlockInventoryView. Nothing in the AR
@@ -65,6 +68,7 @@ final class ARExperienceViewModel {
     private var hasReportedRequiredPathPlaced = false
     private var hasReportedUFOMoveRequested = false
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
+    @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
 
     private var masterScene: Entity?
 
@@ -332,6 +336,20 @@ final class ARExperienceViewModel {
 
 
         revealAntIfNeeded()
+    }
+
+    /// The travelling UFO remains tappable while a route is being built. Returning `true` lets
+    /// ContentView stop the tap from falling through to block collection.
+    @discardableResult
+    func handleTravelUFOTapped(_ tappedEntity: Entity) -> Bool {
+        guard canControlUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              isEntity(tappedEntity, partOf: ufo) else {
+            return false
+        }
+
+        beginUFOInspection()
+        return true
     }
 
 
@@ -663,6 +681,8 @@ final class ARExperienceViewModel {
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
         guard canControlUFO,
+              masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
+                .components[UFOInspectionComponent.self]?.isActive != true,
               var control = gameDirector.components[UFOControlComponent.self] else {
             return
         }
@@ -685,6 +705,71 @@ final class ARExperienceViewModel {
         control.requestReset()
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+    }
+
+    /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
+    /// this method only writes intent and releases throttle.
+    func beginUFOInspection() {
+        guard canControlUFO,
+              !isInspectingUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              var inspection = ufo.components[UFOInspectionComponent.self],
+              inspection.phase == .resting else {
+            return
+        }
+
+        releaseGasPedal()
+        inspection.present()
+        ufo.components[UFOInspectionComponent.self] = inspection
+        isInspectingUFO = true
+        isFinishingUFOInspection = false
+    }
+
+    /// Returns the UFO to the exact orientation captured before inspection. Normal travel
+    /// controls remain hidden until the ECS transition has had time to finish.
+    func finishUFOInspection() {
+        guard isInspectingUFO,
+              !isFinishingUFOInspection,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              var inspection = ufo.components[UFOInspectionComponent.self] else {
+            return
+        }
+
+        inspection.dismiss()
+        ufo.components[UFOInspectionComponent.self] = inspection
+        isFinishingUFOInspection = true
+
+        Task { [weak self] in
+            try? await Task.sleep(
+                for: .seconds(Double(UFOInspectionComponent.transitionDuration) + 0.05)
+            )
+            guard let self else { return }
+            self.isInspectingUFO = false
+            self.isFinishingUFOInspection = false
+            self.ufoInspectionScreenPosition = nil
+        }
+    }
+
+    /// Projects the paused UFO to screen space at 30 Hz so the readable SwiftUI sensor controls
+    /// track immediately beneath it without making per-frame entity or mesh changes.
+    func refreshUFOInspectionProjection(using content: RealityViewCameraContent) {
+        guard isInspectingUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO) else {
+            return
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastUFOProjectionRefreshTime >= 1.0 / 30.0 else { return }
+        lastUFOProjectionRefreshTime = now
+
+        guard let position = content.project(point: ufo.position(relativeTo: nil), to: .local)
+        else { return }
+
+        if let current = ufoInspectionScreenPosition,
+           hypot(current.x - position.x, current.y - position.y) < 1 {
+            return
+        }
+        ufoInspectionScreenPosition = position
     }
 
     func setIRSensorCount(_ requestedCount: Int) {
@@ -758,6 +843,9 @@ final class ARExperienceViewModel {
             )
         )
         ufo.components.set(IRSensorArrayComponent(sensorCount: sensorCount))
+        ufo.components.set(UFOInspectionComponent())
+        ufo.components.set(InputTargetComponent())
+        Self.prepareBoxCollision(on: ufo)
         home.components.set(HomeComponent())
         IRSensorFactory.rebuildSensors(
             on: ufo,

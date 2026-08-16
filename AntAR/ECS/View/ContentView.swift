@@ -33,6 +33,9 @@ struct ContentView: View {
                     if viewModel.canControlUFO {
                         viewModel.refreshIRTelemetry()
                     }
+                    if viewModel.isInspectingUFO, let latestContent {
+                        viewModel.refreshUFOInspectionProjection(using: latestContent)
+                    }
                 }
             }
             .onGeometryChange(for: CGRect.self) { geometry in
@@ -82,10 +85,21 @@ struct ContentView: View {
                 }
 
                 if viewModel.canControlUFO {
-                    UFOTravelControlsView(viewModel: viewModel)
+                    UFOTravelControlsView(
+                        viewModel: viewModel,
+                        onInspectUFO: viewModel.beginUFOInspection
+                    )
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                 }
+            }
+
+            if viewModel.isInspectingUFO {
+                GeometryReader { geometry in
+                    UFOSensorInspectionView(viewModel: viewModel)
+                        .position(inspectionControlPosition(in: geometry.size))
+                }
+                .ignoresSafeArea()
             }
         }
     }
@@ -159,6 +173,7 @@ struct ContentView: View {
             // isInRange), so a tap on a too-far block is just ignored, not an error.
             let tappedEntity = content.entity(at: location, in: .local)
             if let tappedEntity {
+                if viewModel.handleTravelUFOTapped(tappedEntity) { return }
                 viewModel.handleBlockTapped(tappedEntity)
             }
             return
@@ -175,6 +190,17 @@ struct ContentView: View {
             return
         }
         viewModel.confirmPlacement(at: tappedPoint)
+    }
+
+    private func inspectionControlPosition(in size: CGSize) -> CGPoint {
+        let ufoPosition = viewModel.ufoInspectionScreenPosition
+            ?? CGPoint(x: size.width / 2, y: size.height * 0.38)
+        let halfPanelWidth: CGFloat = 118
+        let panelHalfHeight: CGFloat = 105
+        return CGPoint(
+            x: min(max(ufoPosition.x, halfPanelWidth), size.width - halfPanelWidth),
+            y: min(max(ufoPosition.y + 125, panelHalfHeight), size.height - panelHalfHeight)
+        )
     }
 }
 

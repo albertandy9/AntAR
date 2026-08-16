@@ -14,9 +14,9 @@ enum BlockLayoutConfig {
         let positionOverride: SIMD3<Float>?
     }
 
-    // TUNABLE — two black path blocks, two weaker dark-gray path blocks, and three light
-    // obstacle blocks. IR behaviour is authored explicitly because visible RGB color is not a
-    // reliable measurement of a real material's near-infrared response.
+    // TUNABLE — two black path blocks, two weaker dark-gray path blocks, and three bright
+    // red/green/yellow obstacle blocks. IR behaviour is authored explicitly because visible RGB
+    // color is not a reliable measurement of a real material's near-infrared response.
     static let entries: [Entry] = [
         Entry(
             name: "Block1",
@@ -44,19 +44,19 @@ enum BlockLayoutConfig {
         ),
         Entry(
             name: "Block5",
-            color: UIColor(white: 0.82, alpha: 1),
+            color: UIColor(red: 0.96, green: 0.18, blue: 0.14, alpha: 1),
             irMaterial: .lightObstacle,
             positionOverride: nil
         ),
         Entry(
             name: "Block6",
-            color: UIColor(white: 0.90, alpha: 1),
+            color: UIColor(red: 0.24, green: 0.90, blue: 0.32, alpha: 1),
             irMaterial: .lightObstacle,
             positionOverride: nil
         ),
         Entry(
             name: "Block7",
-            color: UIColor(white: 0.98, alpha: 1),
+            color: UIColor(red: 1.00, green: 0.84, blue: 0.08, alpha: 1),
             irMaterial: .lightObstacle,
             positionOverride: nil
         ),

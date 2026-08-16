@@ -66,6 +66,14 @@ public struct UFOPathFollowingSystem: System {
                 continue
             }
 
+            // Inspection owns the chassis orientation and intentionally pauses both motors.
+            if ufo.components[UFOInspectionComponent.self]?.isActive == true {
+                follower.leftMotorPower = 0
+                follower.rightMotorPower = 0
+                ufo.components[UFOPathFollowerComponent.self] = follower
+                continue
+            }
+
             // The UFO may reach the fifth block before the story state machine has consumed the
             // collection/placement events. Remember arrival locally, then publish completion once
             // the canonical state reaches `.ufoTravelling`.
