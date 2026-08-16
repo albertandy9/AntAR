@@ -9,42 +9,115 @@ import SwiftUI
 /// model; this view never changes a RealityKit entity transform or follower component directly.
 struct UFOTravelControlsView: View {
     @Bindable var viewModel: ARExperienceViewModel
+    let onInspectUFO: () -> Void
 
     var body: some View {
         VStack(spacing: 10) {
             IRIntensityPanel(viewModel: viewModel)
 
-            HStack(spacing: 12) {
-                Button {
-                    viewModel.requestUFOReset()
-                } label: {
-                    Label("Reset", systemImage: "arrow.counterclockwise")
-                        .font(.headline)
-                        .frame(height: 58)
+            if !viewModel.isInspectingUFO {
+                HStack(spacing: 12) {
+                    Button {
+                        viewModel.requestUFOReset()
+                    } label: {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                            .font(.headline)
+                            .frame(height: 58)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.white)
+
+                    GasPedal(
+                        isPressed: viewModel.isGasPedalPressed,
+                        onPress: { viewModel.setGasPedalPressed(true) },
+                        onRelease: { viewModel.setGasPedalPressed(false) }
+                    )
                 }
-                .buttonStyle(.bordered)
-                .tint(.white)
 
-                GasPedal(
-                    isPressed: viewModel.isGasPedalPressed,
-                    onPress: { viewModel.setGasPedalPressed(true) },
-                    onRelease: { viewModel.setGasPedalPressed(false) }
-                )
+                Button(action: onInspectUFO) {
+                    Label("Atur sensor di bawah UFO", systemImage: "rotate.3d")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 42)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.cyan.opacity(0.76))
             }
-
-            Stepper(
-                "Sensor: \(viewModel.sensorCount)",
-                value: $viewModel.sensorCount,
-                in: IRSensorLayout.minimumCount...IRSensorLayout.maximumCount
-            ) { _ in
-                viewModel.setIRSensorCount(viewModel.sensorCount)
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.black.opacity(0.62), in: Capsule())
-            .fixedSize()
         }
+    }
+}
+
+/// A readable screen-space control that follows the projected UFO while its ECS inspection pose
+/// exposes the physical sensors underneath. This is used instead of tiny 3D text/buttons, which
+/// are difficult to hit reliably through an iPhone AR camera.
+struct UFOSensorInspectionView: View {
+    @Bindable var viewModel: ARExperienceViewModel
+
+    var body: some View {
+        VStack(spacing: 9) {
+            Image(systemName: "arrowtriangle.up.fill")
+                .font(.caption)
+                .foregroundStyle(.cyan)
+
+            Text("SENSOR IR DI BAWAH UFO")
+                .font(.caption2.monospaced().weight(.bold))
+                .foregroundStyle(.white.opacity(0.72))
+
+            HStack(spacing: 10) {
+                sensorButton(systemImage: "minus") {
+                    viewModel.setIRSensorCount(viewModel.sensorCount - 1)
+                }
+                .disabled(viewModel.sensorCount <= IRSensorLayout.minimumCount)
+
+                VStack(spacing: 0) {
+                    Text("\(viewModel.sensorCount)")
+                        .font(.title2.monospacedDigit().weight(.bold))
+                    Text("sensor")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.62))
+                }
+                .frame(minWidth: 58)
+
+                sensorButton(systemImage: "plus") {
+                    viewModel.setIRSensorCount(viewModel.sensorCount + 1)
+                }
+                .disabled(viewModel.sensorCount >= IRSensorLayout.maximumCount)
+            }
+
+            Button {
+                viewModel.finishUFOInspection()
+            } label: {
+                Text(viewModel.isFinishingUFOInspection ? "Mengembalikan…" : "Done")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.cyan)
+            .disabled(viewModel.isFinishingUFOInspection)
+        }
+        .foregroundStyle(.white)
+        .padding(12)
+        .frame(width: 220)
+        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(.cyan.opacity(0.65), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 5)
+    }
+
+    private func sensorButton(
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.bold))
+                .frame(width: 42, height: 38)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.white.opacity(0.20))
     }
 }
 

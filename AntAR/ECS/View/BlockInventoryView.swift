@@ -16,21 +16,49 @@ import SwiftUI
 
 struct BlockInventoryView: View {
     let collectedBlocks: [CollectedBlock]
+    let isReturnTargeted: Bool
 
     var body: some View {
-        HStack(spacing: -10) {
-            ForEach(collectedBlocks) { block in
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(block.color)
-                    .frame(width: 32, height: 32)
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 2))
-                    .shadow(radius: 2)
-                    .draggable(block.id)
+        VStack(spacing: 5) {
+            Text(isReturnTargeted
+                ? "LEPAS UNTUK MENGEMBALIKAN"
+                : "INVENTORY • tarik balok kembali ke sini")
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(isReturnTargeted ? .yellow : .white.opacity(0.68))
+
+            if collectedBlocks.isEmpty {
+                Label("Tarik balok ke sini", systemImage: "tray.and.arrow.down.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(isReturnTargeted ? .yellow : .white.opacity(0.82))
+            } else {
+                HStack(spacing: -10) {
+                    ForEach(collectedBlocks) { block in
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(block.color)
+                            .frame(width: 32, height: 32)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 2))
+                            .shadow(radius: 2)
+                            .draggable(block.id)
+                    }
+                }
             }
         }
+        .frame(minWidth: 150, minHeight: 38)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.black.opacity(0.58), in: Capsule())
+        .background(
+            isReturnTargeted ? Color.yellow.opacity(0.24) : Color.black.opacity(0.58),
+            in: Capsule()
+        )
+        .overlay(
+            Capsule()
+                .stroke(
+                    isReturnTargeted ? Color.yellow : Color.clear,
+                    style: StrokeStyle(lineWidth: 3, dash: [8, 5])
+                )
+        )
+        .scaleEffect(isReturnTargeted ? 1.06 : 1)
+        .animation(.easeOut(duration: 0.14), value: isReturnTargeted)
         .animation(.spring(duration: 0.4), value: collectedBlocks.map(\.id))
     }
 }

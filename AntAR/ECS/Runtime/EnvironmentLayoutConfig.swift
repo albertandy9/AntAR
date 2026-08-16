@@ -19,6 +19,9 @@ enum EnvironmentLayoutConfig {
 
     static let nestEntityName = "ant_nest"
 
+    /// Optional RCP instance of Environment/env_terrain.usdz.
+    static let terrainEntityName = "env_terrain"
+
     static let backgroundEntityName = "bakcground"
     // TUNABLE — bakcground's color. Change this to whatever fits the scene.
     static let backgroundColor: UIColor = .systemBrown

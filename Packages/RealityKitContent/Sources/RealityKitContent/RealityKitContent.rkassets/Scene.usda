@@ -128,7 +128,7 @@ def Xform "Root"
         rel material:binding = </Root/Block1/DefaultMaterial>
         double size = 0.2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (-1.4145495, 1.0133687, 0.74492323)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -156,7 +156,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (20, 20)
         int ui:nodegraph:node:stackingOrder = 1
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (-1.1606916, 0.85495675, 0.30685347)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -184,7 +184,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (40, 40)
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (-1.489671, 1.5251796, 1.2175262)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -212,7 +212,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (40, 40)
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (-1.7257832, 0.40645525, 1.1136931)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -240,7 +240,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (60, 60)
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (1.2240217, 1.4340671, 1.5215797)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -268,7 +268,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (80, 80)
         int ui:nodegraph:node:stackingOrder = 4
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (1.4092432, 0.83339036, 0.82811713)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -296,7 +296,7 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (100, 100)
         int ui:nodegraph:node:stackingOrder = 5
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (0.5, 0.08, 3)
         float3 xformOp:translate = (1.1914307, 1.2179717, 0.71546006)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
@@ -428,7 +428,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 1
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.014222726, 0.36149487, 0)
+        float3 xformOp:translate = (0.01145, 0.36149487, 0)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -553,7 +553,7 @@ def Xform "Root"
         double size = 0.2
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -0.04197395)
+        float3 xformOp:translate = (-0.01422, 0.05939296, -0.04197395)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -621,8 +621,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (20, 20)
         int ui:nodegraph:node:stackingOrder = 1
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -0.29146183)
+        float3 xformOp:scale = (0.3, 0.08, 3)
+        float3 xformOp:translate = (0.0114483535, 0.009379884, -0.22344542)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -648,8 +648,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (40, 40)
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -0.5603301)
+        float3 xformOp:scale = (0.3, 0.08, 3)
+        float3 xformOp:translate = (0.0114483535, 0.009379884, -0.83899015)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -675,8 +675,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (60, 60)
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -0.8352111)
+        float3 xformOp:scale = (0.3, 0.08, 3)
+        float3 xformOp:translate = (0.0114483535, 0.009379884, -1.4658108)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -702,40 +702,13 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (80, 80)
         int ui:nodegraph:node:stackingOrder = 4
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -1.1423883)
+        float3 xformOp:scale = (0.3, 0.08, 3)
+        float3 xformOp:translate = (0.0114483535, 0.009379884, -2.0883074)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
         {
             token outputs:surface.connect = </Root/finish_block_4/DefaultMaterial/DefaultSurfaceShader.outputs:surface>
-
-            def Shader "DefaultSurfaceShader"
-            {
-                uniform token info:id = "UsdPreviewSurface"
-                color3f inputs:diffuseColor = (1, 1, 1)
-                float inputs:roughness = 0.75
-                token outputs:surface
-            }
-        }
-    }
-
-    def Cube "finish_block_5" (
-        prepend apiSchemas = ["MaterialBindingAPI"]
-    )
-    {
-        rel material:binding = </Root/finish_block_5/DefaultMaterial>
-        double size = 0.2
-        float2 ui:nodegraph:node:pos = (100, 100)
-        int ui:nodegraph:node:stackingOrder = 5
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.034929387, 0.05939296, -1.4190958)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-
-        def Material "DefaultMaterial"
-        {
-            token outputs:surface.connect = </Root/finish_block_5/DefaultMaterial/DefaultSurfaceShader.outputs:surface>
 
             def Shader "DefaultSurfaceShader"
             {

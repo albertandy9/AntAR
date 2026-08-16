@@ -14,7 +14,26 @@ enum IRSensorFactory {
     private static let emittedWavePrefix = "IREmittedWave_"
     private static let returnedWavePrefix = "IRReturnedWave_"
     private static let impactGlowName = "IRImpactGlow"
-    private static let wavefrontCount = 4
+    // Three rings still communicate the travelling/returning wave clearly while removing 25%
+    // of the animated beam entities and transparent draws from every sensor.
+    private static let wavefrontCount = 3
+    private static let sharedWavefrontMesh = MeshResource.generateCylinder(
+        height: 0.0012,
+        radius: 0.010
+    )
+    private static let sharedImpactGlowMesh = MeshResource.generateCylinder(
+        height: 0.0018,
+        radius: 0.014
+    )
+    private static let sharedRedMaterial = redMaterial()
+
+    /// Forces one-time mesh/material creation while the authored scene is preloading instead of
+    /// paying that cost on the frame where the travelling UFO becomes visible.
+    static func prepareSharedResources() {
+        _ = sharedWavefrontMesh
+        _ = sharedImpactGlowMesh
+        _ = sharedRedMaterial
+    }
 
     static func rebuildSensors(on ufo: Entity, sensorCount: Int, sensorRange: Float) {
         ufo.children
@@ -57,42 +76,39 @@ enum IRSensorFactory {
         let activation = min(max(lineSignal, 0), 1)
         let returnedIR = min(max(reflectance, 0), 1)
 
-        for waveIndex in 0..<wavefrontCount {
-            let offset = Float(waveIndex) / Float(wavefrontCount)
-            let progress = normalizedPhase(wavePhase + offset)
+        for visual in sensor.children {
+            guard let beam = visual.components[IRBeamVisualComponent.self] else { continue }
 
-            if let emitted = sensor.children.first(
-                where: { $0.name == emittedWavePrefix + String(waveIndex) }
-            ) {
+            switch beam.kind {
+            case .emittedWave:
+                let progress = normalizedPhase(wavePhase + beam.phaseOffset)
                 let radiusScale = 0.70 + progress * 0.80
-                emitted.position.y = -range * progress
-                emitted.scale = SIMD3<Float>(radiusScale, 1, radiusScale)
-                setRedMaterial(on: emitted, alpha: 0.08 + (1 - progress) * 0.34)
-            }
+                visual.position.y = -range * progress
+                visual.scale = SIMD3<Float>(radiusScale, 1, radiusScale)
+                setOpacity(on: visual, to: 0.08 + (1 - progress) * 0.34)
 
-            if let returned = sensor.children.first(
-                where: { $0.name == returnedWavePrefix + String(waveIndex) }
-            ) {
+            case .returnedWave:
                 // The sensor measures returned energy rather than a mirror-like outgoing ray.
                 // Bright surfaces make the return wave strong; the dark line absorbs most of it.
+                let progress = normalizedPhase(wavePhase + beam.phaseOffset)
                 let returnProgress = normalizedPhase(progress + 0.12)
                 let radiusScale = 1.45 - returnProgress * 0.65
-                returned.position.y = -range + range * returnProgress
-                returned.scale = SIMD3<Float>(radiusScale, 1, radiusScale)
-                returned.isEnabled = isSamplingTile || returnedIR > 0.08
-                setRedMaterial(
-                    on: returned,
-                    alpha: returnedIR * (0.06 + (1 - returnProgress) * 0.42)
+                visual.position.y = -range + range * returnProgress
+                visual.scale = SIMD3<Float>(radiusScale, 1, radiusScale)
+                visual.isEnabled = isSamplingTile
+                setOpacity(
+                    on: visual,
+                    to: returnedIR * (0.06 + (1 - returnProgress) * 0.42)
                 )
-            }
-        }
 
-        if let glow = sensor.children.first(where: { $0.name == impactGlowName }) {
-            let glowStrength = max(returnedIR, activation * 0.45)
-            let pulse = 0.88 + sin(wavePhase * .pi * 2) * 0.12
-            let size = (0.70 + glowStrength * 1.15) * pulse
-            glow.scale = SIMD3<Float>(size, 1, size)
-            setRedMaterial(on: glow, alpha: 0.10 + glowStrength * 0.52)
+            case .impactGlow:
+                let glowStrength = max(returnedIR, activation * 0.45)
+                let pulse = 0.88 + sin(wavePhase * .pi * 2) * 0.12
+                let size = (0.70 + glowStrength * 1.15) * pulse
+                visual.scale = SIMD3<Float>(size, 1, size)
+                visual.isEnabled = isSamplingTile
+                setOpacity(on: visual, to: 0.10 + glowStrength * 0.52)
+            }
         }
     }
 
@@ -120,22 +136,29 @@ enum IRSensorFactory {
 
     private static func makeWavefront(index: Int, isReturn: Bool) -> ModelEntity {
         let entity = ModelEntity(
-            mesh: .generateCylinder(height: 0.0012, radius: 0.010),
-            materials: [redMaterial(alpha: isReturn ? 0.20 : 0.30)]
+            mesh: sharedWavefrontMesh,
+            materials: [sharedRedMaterial]
         )
         entity.name = (isReturn ? returnedWavePrefix : emittedWavePrefix) + String(index)
-        entity.components.set(IRBeamVisualComponent())
+        entity.components.set(
+            IRBeamVisualComponent(
+                kind: isReturn ? .returnedWave : .emittedWave,
+                phaseOffset: Float(index) / Float(wavefrontCount)
+            )
+        )
+        entity.components.set(OpacityComponent(opacity: isReturn ? 0.20 : 0.30))
         return entity
     }
 
     private static func makeImpactGlow(range: Float) -> ModelEntity {
         let entity = ModelEntity(
-            mesh: .generateCylinder(height: 0.0018, radius: 0.014),
-            materials: [redMaterial(alpha: 0.38)]
+            mesh: sharedImpactGlowMesh,
+            materials: [sharedRedMaterial]
         )
         entity.name = impactGlowName
         entity.position.y = -range
-        entity.components.set(IRBeamVisualComponent())
+        entity.components.set(IRBeamVisualComponent(kind: .impactGlow))
+        entity.components.set(OpacityComponent(opacity: 0.38))
         return entity
     }
 
@@ -143,17 +166,22 @@ enum IRSensorFactory {
         value - floor(value)
     }
 
-    private static func redMaterial(alpha: Float) -> UnlitMaterial {
+    private static func redMaterial() -> UnlitMaterial {
         var material = UnlitMaterial(color: UIColor(red: 1, green: 0.10, blue: 0.04, alpha: 1))
-        material.blending = .transparent(opacity: .init(floatLiteral: min(max(alpha, 0), 1)))
+        material.blending = .transparent(opacity: .init(floatLiteral: 1))
         material.readsDepth = true
         material.writesDepth = false
         return material
     }
 
-    private static func setRedMaterial(on entity: Entity, alpha: Float) {
-        guard var model = entity.components[ModelComponent.self] else { return }
-        model.materials = [redMaterial(alpha: alpha)]
-        entity.components[ModelComponent.self] = model
+    private static func setOpacity(on entity: Entity, to requestedOpacity: Float) {
+        let opacity = min(max(requestedOpacity, 0), 1)
+        if var component = entity.components[OpacityComponent.self] {
+            guard abs(component.opacity - opacity) > 0.005 else { return }
+            component.opacity = opacity
+            entity.components[OpacityComponent.self] = component
+        } else {
+            entity.components.set(OpacityComponent(opacity: opacity))
+        }
     }
 }

@@ -21,7 +21,7 @@ public struct BlockAppearanceSystem: System {
 
             block.appearProgress = min(block.appearProgress + deltaTime / Self.appearDuration, 1)
             entity.components[BlockComponent.self] = block
-            entity.scale = SIMD3<Float>(repeating: block.baseScale * block.appearProgress)
+            entity.scale = block.baseScale * block.appearProgress
         }
     }
 }

@@ -6,7 +6,7 @@
 import RealityKit
 
 /// A downward-facing sensor child on the UFO. Its child entity is also the IR beam visual.
-public struct IRSensorComponent: Component, Codable {
+public struct IRSensorComponent: Component, Codable, Equatable {
     public var index: Int
     public var lateralOffset: Float
     public var range: Float

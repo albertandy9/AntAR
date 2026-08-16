@@ -38,8 +38,7 @@
     "objectMetadataList" : [
       [
         "147CA59D-13AD-4B79-A70F-A20DD9A2E747",
-        "Root",
-        "friendly_ufo"
+        "Root"
       ],
       {
         "isExpanded" : true,
@@ -47,7 +46,8 @@
       },
       [
         "147CA59D-13AD-4B79-A70F-A20DD9A2E747",
-        "Root"
+        "Root",
+        "friendly_ufo"
       ],
       {
         "isExpanded" : true,
@@ -66,16 +66,6 @@
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
         "WalkAnim",
-        "Track5"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
         "Track4"
       ],
       {
@@ -86,7 +76,7 @@
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
         "WalkAnim",
-        "Track2"
+        "Track8"
       ],
       {
         "isExpanded" : true,
@@ -106,7 +96,27 @@
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
         "WalkAnim",
-        "Track8"
+        "Track6"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track5"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track"
       ],
       {
         "isExpanded" : true,
@@ -126,26 +136,6 @@
       },
       [
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track6"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root"
       ],
       {
@@ -157,6 +147,16 @@
         "Root",
         "WalkAnim",
         "Track3"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track2"
       ],
       {
         "isExpanded" : true,

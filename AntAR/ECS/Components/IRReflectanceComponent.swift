@@ -20,8 +20,10 @@ public struct IRReflectanceComponent: Component, Codable {
         self.isValidPath = isValidPath
     }
 
-    public static let darkPath = IRReflectanceComponent(reflectance: 0.08, isValidPath: true)
-    public static let lightObstacle = IRReflectanceComponent(reflectance: 0.92, isValidPath: false)
+    public static let darkPath = IRReflectanceComponent(reflectance: 0.04, isValidPath: true)
+    /// A valid path material that absorbs less IR than black, producing a weaker line signal.
+    public static let darkGrayPath = IRReflectanceComponent(reflectance: 0.30, isValidPath: true)
+    public static let lightObstacle = IRReflectanceComponent(reflectance: 0.96, isValidPath: false)
 
     /// Derives the teaching material from the exact display color supplied by the incoming block
     /// system. This keeps visible color and simulated IR response on the same source of truth.
@@ -37,7 +39,7 @@ public struct IRReflectanceComponent: Component, Codable {
         let luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue
         let isDark = luminance < 0.58
         return IRReflectanceComponent(
-            reflectance: isDark ? 0.08 : 0.92,
+            reflectance: isDark ? 0.04 : 0.96,
             isValidPath: isDark
         )
     }

@@ -37,6 +37,17 @@ public enum GameState: String, CaseIterable, Codable, Sendable {
     /// 11. The ant reaches home and the experience is complete.
     case completed
 
+    /// Route building is intentionally incremental: collection, placement, IR sensing, and UFO
+    /// movement can overlap from the first placed block through the formal travelling state.
+    public var supportsRouteBuilding: Bool {
+        switch self {
+        case .blocksScattered, .blocksCollected, .blocksPlaced, .ufoTravelling:
+            true
+        default:
+            false
+        }
+    }
+
     /// Pure transition table. It is deliberately independent of RealityKit, making the story
     /// order straightforward to unit-test without an AR session.
     public func transition(for event: GameEvent) -> GameState? {

@@ -23,11 +23,27 @@ final class ARExperienceViewModel {
     var leftMotorPower: Float = 0
     var rightMotorPower: Float = 0
     var isGasPedalPressed = false
+    var isInspectingUFO = false
+    var isFinishingUFOInspection = false
+    var ufoInspectionScreenPosition: CGPoint?
     private(set) var placementAnchor: Entity?
 
     /// Every block collected so far, in tap order — drives BlockInventoryView. Nothing in the AR
     /// scene reads this back; it exists purely for the 2D SwiftUI tray.
     private(set) var collectedBlocks: [CollectedBlock] = []
+    private var collectedBlockIDs: Set<String> = []
+    private var placedBlockIDsBySlot: [String?] = Array(
+        repeating: nil,
+        count: BlockPlacementConfig.dropSlotNames.count
+    )
+
+    var hasPlacedBlocks: Bool {
+        placedBlockIDsBySlot.contains { $0 != nil }
+    }
+
+    var canControlUFO: Bool {
+        hasPlacedBlocks && isTravelUFOReady && gameState.supportsRouteBuilding
+    }
 
     // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its
     // transform (for `unproject(...ontoPlane:)`) to convert a 2D tap into a 3D table point.
@@ -47,10 +63,18 @@ final class ARExperienceViewModel {
     private var hasStartedUFOAscend = false
     private var hasSpawnedBlocks = false
     private var hasRevealedEnvironment = false
-    private var hasQueuedRequiredPathEvents = false
+    private var isTravelUFOReady = false
+    private var hasReportedRequiredBlocksCollected = false
+    private var hasReportedRequiredPathPlaced = false
+    private var hasReportedUFOMoveRequested = false
+    @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
+    @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
 
     private var masterScene: Entity?
 
+    /// Asset I/O starts while the learner is still scanning the table. The same prepared entity
+    /// is attached after placement, avoiding a load spike at the `.ufoAppears` transition.
+    private var masterSceneAssetLoadTask: Task<Entity?, Never>?
     private var masterSceneLoadTask: Task<Void, Never>?
     @ObservationIgnored
     nonisolated(unsafe) private var stateObserver: NSObjectProtocol?
@@ -93,6 +117,10 @@ final class ARExperienceViewModel {
                 } else if state == .blocksScattered {
                     self?.beginUFOAscendIfNeeded()
                     self?.spawnBlocksIfNeeded()
+                } else if state == .blocksCollected {
+                    self?.reportRequiredPathPlacedIfReady()
+                } else if state == .blocksPlaced {
+                    self?.reportUFOMoveRequestedIfNeeded()
                 } else if state == .ufoTravelling {
                     self?.requestUFOTravel()
                 } else if state == .completed {
@@ -145,6 +173,8 @@ final class ARExperienceViewModel {
     }
 
     func startTracking() async {
+        startMasterScenePreloadIfNeeded()
+
         let session = SpatialTrackingSession()
         let configuration = SpatialTrackingSession.Configuration(
             tracking: [.plane],
@@ -153,6 +183,21 @@ final class ARExperienceViewModel {
 
         _ = await session.run(configuration)
         trackingSession = session
+    }
+
+    private func startMasterScenePreloadIfNeeded() {
+        guard masterSceneAssetLoadTask == nil else { return }
+
+        masterSceneAssetLoadTask = Task { @MainActor in
+            guard let scene = try? await Entity(named: "Scene", in: realityKitContentBundle) else {
+                return nil
+            }
+
+            scene.name = "MasterScene"
+            Self.prepareStaticSceneResources(in: scene)
+            IRSensorFactory.prepareSharedResources()
+            return scene
+        }
     }
 
     /// Entry point for future systems/adapters that are not themselves RealityKit systems.
@@ -226,11 +271,10 @@ final class ARExperienceViewModel {
             // only fire after confirmPlacement has already advanced GameState past .scanningTable.
             guard let self, let placementAnchor = self.placementAnchor else { return }
 
-            guard let scene = try? await Entity(named: "Scene", in: realityKitContentBundle) else {
+            self.startMasterScenePreloadIfNeeded()
+            guard let scene = await self.masterSceneAssetLoadTask?.value else {
                 return
             }
-
-            scene.name = "MasterScene"
 
             let contentRoot = scene.findEntity(named: "Root") ?? scene
             for child in contentRoot.children {
@@ -277,9 +321,6 @@ final class ARExperienceViewModel {
         ufo.components.set(HapticCueComponent())
         ufo.components.set(SoundCueComponent())
 
-        let bounds = ufo.visualBounds(relativeTo: ufo)
-        let extents = bounds.max - bounds.min
-        ufo.components.set(CollisionComponent(shapes: [.generateBox(size: extents)]))
         ufo.components.set(InputTargetComponent())
     }
 
@@ -295,6 +336,20 @@ final class ARExperienceViewModel {
 
 
         revealAntIfNeeded()
+    }
+
+    /// The travelling UFO remains tappable while a route is being built. Returning `true` lets
+    /// ContentView stop the tap from falling through to block collection.
+    @discardableResult
+    func handleTravelUFOTapped(_ tappedEntity: Entity) -> Bool {
+        guard canControlUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              isEntity(tappedEntity, partOf: ufo) else {
+            return false
+        }
+
+        beginUFOInspection()
+        return true
     }
 
 
@@ -404,31 +459,56 @@ final class ARExperienceViewModel {
         let end = target.position(relativeTo: nil)
         ufo.components.set(UFOAscendComponent(startPosition: start, targetPosition: end))
 
+        // Spread environment activation across the existing ascend animation. This keeps grass,
+        // terrain, and the travelling UFO from all becoming renderable on the same frame.
+        let environmentRevealTask = Task { @MainActor [weak self] in
+            await self?.revealEnvironment()
+        }
+
         try? await Task.sleep(for: .seconds(Double(UFOAscendComponent.duration)))
+        await environmentRevealTask.value
         target.isEnabled = true
-        revealEnvironment()
+        isTravelUFOReady = true
+        if hasPlacedBlocks {
+            requestUFOTravel()
+        }
     }
 
-    private func revealEnvironment() {
+    private func revealEnvironment() async {
         guard !hasRevealedEnvironment, let masterScene else { return }
         hasRevealedEnvironment = true
 
-        for name in EnvironmentLayoutConfig.grassEntityNames {
-            masterScene.findEntity(named: name)?.isEnabled = true
+        let flatBackground = masterScene.findEntity(named: EnvironmentLayoutConfig.backgroundEntityName)
+
+        // Prefer an authored terrain instance and preserve every material from its USDZ. The
+        // simple brown plane remains a fallback for scenes that have not added env_terrain yet.
+        if let terrain = masterScene.findEntity(named: EnvironmentLayoutConfig.terrainEntityName) {
+            terrain.isEnabled = true
+            flatBackground?.isEnabled = false
+        } else if let background = flatBackground {
+            background.isEnabled = true
+
+            if let modelHolder = Self.modelEntity(in: background),
+               var model = modelHolder.components[ModelComponent.self] {
+                var material = PhysicallyBasedMaterial()
+                material.baseColor = .init(tint: EnvironmentLayoutConfig.backgroundColor)
+                material.roughness = .init(floatLiteral: 0.92)
+                material.metallic = .init(floatLiteral: 0)
+                model.materials = [material]
+                modelHolder.components[ModelComponent.self] = model
+            }
         }
+
         masterScene.findEntity(named: EnvironmentLayoutConfig.nestEntityName)?.isEnabled = true
 
-        guard let background = masterScene.findEntity(named: EnvironmentLayoutConfig.backgroundEntityName) else {
-            return
-        }
-        background.isEnabled = true
+        for (index, name) in EnvironmentLayoutConfig.grassEntityNames.enumerated() {
+            masterScene.findEntity(named: name)?.isEnabled = true
 
-        if let modelHolder = modelEntity(in: background),
-           var model = modelHolder.components[ModelComponent.self] {
-            var material = PhysicallyBasedMaterial()
-            material.baseColor = .init(tint: EnvironmentLayoutConfig.backgroundColor)
-            model.materials = [material]
-            modelHolder.components[ModelComponent.self] = model
+            // Two small assets per frame is visually immediate but avoids one large activation
+            // burst. Sleeping is asynchronous, so it never blocks RealityKit's render thread.
+            if index.isMultiple(of: 2) {
+                try? await Task.sleep(for: .milliseconds(16))
+            }
         }
     }
 
@@ -451,24 +531,15 @@ final class ARExperienceViewModel {
                 block.setPosition(positionOverride, relativeTo: block.parent)
             }
 
-            if let modelHolder = modelEntity(in: block),
-               var model = modelHolder.components[ModelComponent.self] {
-                var material = PhysicallyBasedMaterial()
-                material.baseColor = .init(tint: entry.color)
-                model.materials = [material]
-                modelHolder.components[ModelComponent.self] = model
-            }
-
-            let bounds = block.visualBounds(relativeTo: block)
-            let extents = bounds.max - bounds.min
-            block.components.set(CollisionComponent(shapes: [.generateBox(size: extents)]))
             block.components.set(InputTargetComponent())
             block.components.set(BlockCollectibleComponent())
 
-            let baseScale = block.scale.x
+            let baseScale = block.scale
             block.components.set(BlockComponent(baseScale: baseScale, appearProgress: 0))
             block.scale = .zero
         }
+
+        updatePlacementGuide()
     }
 
     func handleBlockTapped(_ tappedEntity: Entity) {
@@ -485,56 +556,133 @@ final class ARExperienceViewModel {
             block.components[BlockCollectibleComponent.self] = collectible
             block.isEnabled = false
 
+            collectedBlockIDs.insert(entry.name)
             collectedBlocks.append(CollectedBlock(name: entry.name, uiColor: entry.color))
-            if collectedBlocks.count >= BlockLayoutConfig.requiredCount {
+            if collectedBlockIDs.count >= BlockLayoutConfig.requiredCount,
+               !hasReportedRequiredBlocksCollected {
+                hasReportedRequiredBlocksCollected = true
                 report(.allRequiredBlocksCollected)
             }
             return
         }
     }
 
-
-    private var nextBlockSlotIndex = 0
-
-
     func placeBlockInFrontOfUFO(blockID: String) {
-        guard nextBlockSlotIndex < BlockPlacementConfig.dropSlotNames.count else { return }
+        guard let slotIndex = placedBlockIDsBySlot.firstIndex(where: { $0 == nil }) else { return }
         guard let inventoryIndex = collectedBlocks.firstIndex(where: { $0.id == blockID }) else { return }
         guard let masterScene,
               let block = masterScene.findEntity(named: blockID),
-              let slot = masterScene.findEntity(named: BlockPlacementConfig.dropSlotNames[nextBlockSlotIndex]) else {
+              let slot = masterScene.findEntity(named: BlockPlacementConfig.dropSlotNames[slotIndex]) else {
             return
         }
 
         collectedBlocks.remove(at: inventoryIndex)
-        nextBlockSlotIndex += 1
+        placedBlockIDsBySlot[slotIndex] = blockID
 
         block.setPosition(slot.position(relativeTo: nil), relativeTo: nil)
 
         if let entry = BlockLayoutConfig.entries.first(where: { $0.name == blockID }) {
-            let reflectance = IRReflectanceComponent.from(displayColor: entry.color)
-            block.components.set(PathTileComponent(order: nextBlockSlotIndex, isPlaced: true))
-            block.components.set(reflectance)
+            let bounds = block.visualBounds(relativeTo: block)
+            let center = (bounds.min + bounds.max) * 0.5
+            let halfExtents = (bounds.max - bounds.min) * 0.5
+            block.components.set(
+                PathTileComponent(
+                    order: slotIndex + 1,
+                    isPlaced: true,
+                    footprintCenter: SIMD2<Float>(center.x, center.z),
+                    footprintHalfExtents: SIMD2<Float>(halfExtents.x, halfExtents.z)
+                )
+            )
+            block.components.set(entry.irMaterial)
         }
 
         // Same "grow in from zero" reveal spawnBlocks() uses originally — reuses
         // BlockComponent/BlockAppearanceSystem rather than a new animation.
-        let baseScale = block.scale.x
+        let baseScale = block.components[BlockComponent.self]?.baseScale ?? block.scale
         block.components.set(BlockComponent(baseScale: baseScale, appearProgress: 0))
         block.scale = .zero
+        block.components.set(OpacityComponent(opacity: 1))
         block.isEnabled = true
+        updatePlacementGuide()
+        requestUFOTravel()
+        reportRequiredPathPlacedIfReady()
+    }
 
-        if nextBlockSlotIndex >= BlockPlacementConfig.requiredPathBlockCount,
-           !hasQueuedRequiredPathEvents {
-            hasQueuedRequiredPathEvents = true
-            report(.requiredPathPlaced)
-            report(.ufoMoveRequested)
+    private func reportRequiredPathPlacedIfReady() {
+        guard gameState == .blocksCollected,
+              placedBlockIDsBySlot.allSatisfy({ $0 != nil }),
+              !hasReportedRequiredPathPlaced else {
+            return
         }
+        hasReportedRequiredPathPlaced = true
+        report(.requiredPathPlaced)
+    }
+
+    private func reportUFOMoveRequestedIfNeeded() {
+        guard gameState == .blocksPlaced, !hasReportedUFOMoveRequested else { return }
+        hasReportedUFOMoveRequested = true
+        report(.ufoMoveRequested)
+    }
+
+    /// Resolves a hit-tested RealityKit child back to a currently placed route block.
+    func placedBlockID(containing entity: Entity) -> String? {
+        guard gameState != .completed, let masterScene else { return nil }
+
+        for blockID in placedBlockIDsBySlot.compactMap({ $0 }) {
+            guard let block = masterScene.findEntity(named: blockID),
+                  block.components[PathTileComponent.self]?.isPlaced == true else {
+                continue
+            }
+            if isEntity(entity, partOf: block) { return blockID }
+        }
+        return nil
+    }
+
+    /// Visual acknowledgement while a placed block is being dragged toward the 2D inventory.
+    func setPlacedBlockDragActive(_ active: Bool, blockID: String) {
+        guard let block = masterScene?.findEntity(named: blockID) else { return }
+        block.components.set(OpacityComponent(opacity: active ? 0.52 : 1))
+    }
+
+    /// Returns a placed scene entity to inventory without destroying it. Its authored entity,
+    /// collision, material, and ECS appearance data are reused the next time it is placed.
+    func returnPlacedBlockToInventory(blockID: String) {
+        guard gameState != .completed,
+              let slotIndex = placedBlockIDsBySlot.firstIndex(where: { $0 == blockID }),
+              let masterScene,
+              let block = masterScene.findEntity(named: blockID),
+              let entry = BlockLayoutConfig.entries.first(where: { $0.name == blockID }) else {
+            return
+        }
+
+        placedBlockIDsBySlot[slotIndex] = nil
+        block.components.remove(PathTileComponent.self)
+        block.components.remove(IRReflectanceComponent.self)
+        block.components.set(OpacityComponent(opacity: 1))
+        block.isEnabled = false
+
+        if !collectedBlocks.contains(where: { $0.id == blockID }) {
+            collectedBlocks.append(CollectedBlock(name: entry.name, uiColor: entry.color))
+        }
+        updatePlacementGuide()
+
+        // Editing a live route safely resets the ECS-owned follower before another run.
+        if isTravelUFOReady, gameState.supportsRouteBuilding {
+            requestUFOReset()
+        }
+    }
+
+    private func updatePlacementGuide() {
+        guard let masterScene else { return }
+        let nextEmptySlot = placedBlockIDsBySlot.firstIndex(where: { $0 == nil })
+        BlockPlacementGuideFactory.showOnlySlot(nextEmptySlot, in: masterScene)
     }
 
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
-        guard gameState == .ufoTravelling,
+        guard canControlUFO,
+              masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
+                .components[UFOInspectionComponent.self]?.isActive != true,
               var control = gameDirector.components[UFOControlComponent.self] else {
             return
         }
@@ -548,7 +696,8 @@ final class ARExperienceViewModel {
     /// Sends a reset request to the state-10 ECS control system. The canonical global state/event
     /// table remains the incoming branch's source of truth and receives no reverse transition.
     func requestUFOReset() {
-        guard gameState == .ufoTravelling,
+        guard isTravelUFOReady,
+              gameState.supportsRouteBuilding,
               var control = gameDirector.components[UFOControlComponent.self] else {
             return
         }
@@ -556,6 +705,71 @@ final class ARExperienceViewModel {
         control.requestReset()
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+    }
+
+    /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
+    /// this method only writes intent and releases throttle.
+    func beginUFOInspection() {
+        guard canControlUFO,
+              !isInspectingUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              var inspection = ufo.components[UFOInspectionComponent.self],
+              inspection.phase == .resting else {
+            return
+        }
+
+        releaseGasPedal()
+        inspection.present()
+        ufo.components[UFOInspectionComponent.self] = inspection
+        isInspectingUFO = true
+        isFinishingUFOInspection = false
+    }
+
+    /// Returns the UFO to the exact orientation captured before inspection. Normal travel
+    /// controls remain hidden until the ECS transition has had time to finish.
+    func finishUFOInspection() {
+        guard isInspectingUFO,
+              !isFinishingUFOInspection,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+              var inspection = ufo.components[UFOInspectionComponent.self] else {
+            return
+        }
+
+        inspection.dismiss()
+        ufo.components[UFOInspectionComponent.self] = inspection
+        isFinishingUFOInspection = true
+
+        Task { [weak self] in
+            try? await Task.sleep(
+                for: .seconds(Double(UFOInspectionComponent.transitionDuration) + 0.05)
+            )
+            guard let self else { return }
+            self.isInspectingUFO = false
+            self.isFinishingUFOInspection = false
+            self.ufoInspectionScreenPosition = nil
+        }
+    }
+
+    /// Projects the paused UFO to screen space at 30 Hz so the readable SwiftUI sensor controls
+    /// track immediately beneath it without making per-frame entity or mesh changes.
+    func refreshUFOInspectionProjection(using content: RealityViewCameraContent) {
+        guard isInspectingUFO,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO) else {
+            return
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastUFOProjectionRefreshTime >= 1.0 / 30.0 else { return }
+        lastUFOProjectionRefreshTime = now
+
+        guard let position = content.project(point: ufo.position(relativeTo: nil), to: .local)
+        else { return }
+
+        if let current = ufoInspectionScreenPosition,
+           hypot(current.x - position.x, current.y - position.y) < 1 {
+            return
+        }
+        ufoInspectionScreenPosition = position
     }
 
     func setIRSensorCount(_ requestedCount: Int) {
@@ -577,21 +791,37 @@ final class ARExperienceViewModel {
         )
     }
 
-    /// Called by the incoming RealityView update subscription; no second timer/session is added.
+    /// Called by the incoming RealityView update subscription; telemetry is intentionally capped
+    /// at 20 Hz so changing sensor values do not invalidate the SwiftUI hierarchy every frame.
     func refreshIRTelemetry() {
+        guard canControlUFO else { return }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastIRTelemetryRefreshTime >= 1.0 / 20.0 else { return }
+        lastIRTelemetryRefreshTime = now
+
         guard let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
               let readings = ufo.components[IRSensorArrayComponent.self],
               let follower = ufo.components[UFOPathFollowerComponent.self] else {
             return
         }
 
-        irLineActivations = readings.lineSignals.map { min(max($0, 0), 1) }
+        let nextActivations = readings.lineSignals.map { min(max($0, 0), 1) }
         let decision = IRLineFollowingPolicy.decide(lineSignals: readings.lineSignals)
-        isIRLineDetected = decision.hasLine
-        irLinePosition = decision.lateralCorrection
-        leftMotorPower = follower.leftMotorPower
-        rightMotorPower = follower.rightMotorPower
-        isGasPedalPressed = gameDirector.components[UFOControlComponent.self]?.isPedalPressed ?? false
+        let nextGasState = gameDirector.components[UFOControlComponent.self]?.isPedalPressed ?? false
+
+        if irLineActivations != nextActivations { irLineActivations = nextActivations }
+        if isIRLineDetected != decision.hasLine { isIRLineDetected = decision.hasLine }
+        if abs(irLinePosition - decision.lateralCorrection) > 0.005 {
+            irLinePosition = decision.lateralCorrection
+        }
+        if abs(leftMotorPower - follower.leftMotorPower) > 0.005 {
+            leftMotorPower = follower.leftMotorPower
+        }
+        if abs(rightMotorPower - follower.rightMotorPower) > 0.005 {
+            rightMotorPower = follower.rightMotorPower
+        }
+        if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
     }
 
     private func bindTravelEntities(in scene: Entity) {
@@ -613,6 +843,9 @@ final class ARExperienceViewModel {
             )
         )
         ufo.components.set(IRSensorArrayComponent(sensorCount: sensorCount))
+        ufo.components.set(UFOInspectionComponent())
+        ufo.components.set(InputTargetComponent())
+        Self.prepareBoxCollision(on: ufo)
         home.components.set(HomeComponent())
         IRSensorFactory.rebuildSensors(
             on: ufo,
@@ -623,7 +856,9 @@ final class ARExperienceViewModel {
     }
 
     private func requestUFOTravel() {
-        guard let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+        guard isTravelUFOReady,
+              gameState.supportsRouteBuilding,
+              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
               var follower = ufo.components[UFOPathFollowerComponent.self],
               follower.state == .idle else {
             return
@@ -658,10 +893,46 @@ final class ARExperienceViewModel {
         var position = home.position(relativeTo: ufo.parent)
         position.y += follower.hoverHeight
         ufo.setPosition(position, relativeTo: ufo.parent)
+        setIRVisualsEnabled(false, on: ufo)
     }
 
 
-    private func modelEntity(in root: Entity) -> Entity? {
+    private static func prepareStaticSceneResources(in scene: Entity) {
+        if let ufo = scene.findEntity(named: "ufo_angkat_semut") {
+            prepareBoxCollision(on: ufo)
+        }
+
+        for entry in BlockLayoutConfig.entries {
+            guard let block = scene.findEntity(named: entry.name) else { continue }
+
+            if let modelHolder = modelEntity(in: block),
+               var model = modelHolder.components[ModelComponent.self] {
+                var material = PhysicallyBasedMaterial()
+                material.baseColor = .init(tint: entry.color)
+                // Painted/cardboard-like blocks should have broad, soft highlights rather than
+                // behaving like polished plastic or metal.
+                material.roughness = .init(floatLiteral: 0.82)
+                material.metallic = .init(floatLiteral: 0)
+                model.materials = [material]
+                modelHolder.components[ModelComponent.self] = model
+            }
+
+            prepareBoxCollision(on: block)
+        }
+
+        BlockPlacementGuideFactory.install(in: scene)
+    }
+
+    private static func prepareBoxCollision(on entity: Entity) {
+        guard entity.components[CollisionComponent.self] == nil else { return }
+
+        let bounds = entity.visualBounds(relativeTo: entity)
+        let extents = bounds.max - bounds.min
+        guard extents.x > 0.0001, extents.y > 0.0001, extents.z > 0.0001 else { return }
+        entity.components.set(CollisionComponent(shapes: [.generateBox(size: extents)]))
+    }
+
+    private static func modelEntity(in root: Entity) -> Entity? {
         if root.components[ModelComponent.self] != nil { return root }
         for child in root.children {
             if let found = modelEntity(in: child) { return found }

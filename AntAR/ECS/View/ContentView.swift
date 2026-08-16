@@ -15,6 +15,10 @@ struct ContentView: View {
     // Captured from RealityView's make closure so the tap gesture (called independently by
     // SwiftUI) can still reach `unproject(...)`. Lightweight proxy struct, not a heavy object.
     @State private var latestContent: RealityViewCameraContent?
+    @State private var realityViewFrame: CGRect = .zero
+    @State private var inventoryFrame: CGRect = .zero
+    @State private var draggedPlacedBlockID: String?
+    @State private var isInventoryReturnTargeted = false
 
     var body: some View {
         ZStack {
@@ -26,8 +30,18 @@ struct ContentView: View {
                 // Systems can't write @Observable state directly, so this is the bridge.
                 _ = content.subscribe(to: SceneEvents.Update.self) { _ in
                     viewModel.refreshSurfaceReadiness()
-                    viewModel.refreshIRTelemetry()
+                    if viewModel.canControlUFO {
+                        viewModel.refreshIRTelemetry()
+                    }
+                    if viewModel.isInspectingUFO, let latestContent {
+                        viewModel.refreshUFOInspectionProjection(using: latestContent)
+                    }
                 }
+            }
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.frame(in: .global)
+            } action: { frame in
+                realityViewFrame = frame
             }
             .task {
                 guard await AVCaptureDevice.requestAccess(for: .video) else { return }
@@ -38,6 +52,11 @@ struct ContentView: View {
                     .onEnded { event in
                         handleTap(at: event.location)
                     }
+            )
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged(handlePlacedBlockDragChanged)
+                    .onEnded(handlePlacedBlockDragEnded)
             )
             .dropDestination(for: String.self) { items, _ in
                 guard let blockID = items.first else { return false }
@@ -52,18 +71,82 @@ struct ContentView: View {
 
                 Spacer()
 
-                if !viewModel.collectedBlocks.isEmpty {
-                    BlockInventoryView(collectedBlocks: viewModel.collectedBlocks)
+                if !viewModel.collectedBlocks.isEmpty || viewModel.hasPlacedBlocks {
+                    BlockInventoryView(
+                        collectedBlocks: viewModel.collectedBlocks,
+                        isReturnTargeted: isInventoryReturnTargeted
+                    )
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            inventoryFrame = frame
+                        }
                         .padding(.bottom, 24)
                 }
 
-                if viewModel.gameState == .ufoTravelling {
-                    UFOTravelControlsView(viewModel: viewModel)
+                if viewModel.canControlUFO {
+                    UFOTravelControlsView(
+                        viewModel: viewModel,
+                        onInspectUFO: viewModel.beginUFOInspection
+                    )
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                 }
             }
+
+            if viewModel.isInspectingUFO {
+                GeometryReader { geometry in
+                    UFOSensorInspectionView(viewModel: viewModel)
+                        .position(inspectionControlPosition(in: geometry.size))
+                }
+                .ignoresSafeArea()
+            }
         }
+    }
+
+    private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
+        if draggedPlacedBlockID == nil {
+            guard let content = latestContent,
+                  let hitEntity = content.entity(at: value.startLocation, in: .local),
+                  let blockID = viewModel.placedBlockID(containing: hitEntity) else {
+                return
+            }
+
+            draggedPlacedBlockID = blockID
+            viewModel.setPlacedBlockDragActive(true, blockID: blockID)
+        }
+
+        guard draggedPlacedBlockID != nil else { return }
+        let globalLocation = CGPoint(
+            x: realityViewFrame.minX + value.location.x,
+            y: realityViewFrame.minY + value.location.y
+        )
+        isInventoryReturnTargeted = inventoryFrame
+            .insetBy(dx: -24, dy: -24)
+            .contains(globalLocation)
+    }
+
+    private func handlePlacedBlockDragEnded(_ value: DragGesture.Value) {
+        guard let blockID = draggedPlacedBlockID else {
+            isInventoryReturnTargeted = false
+            return
+        }
+
+        let globalLocation = CGPoint(
+            x: realityViewFrame.minX + value.location.x,
+            y: realityViewFrame.minY + value.location.y
+        )
+        let shouldReturn = inventoryFrame
+            .insetBy(dx: -24, dy: -24)
+            .contains(globalLocation)
+
+        viewModel.setPlacedBlockDragActive(false, blockID: blockID)
+        if shouldReturn {
+            viewModel.returnPlacedBlockToInventory(blockID: blockID)
+        }
+
+        draggedPlacedBlockID = nil
+        isInventoryReturnTargeted = false
     }
 
     /// Same phone-screen tap gesture handles two completely different things depending on
@@ -84,12 +167,13 @@ struct ContentView: View {
             return
         }
 
-        if viewModel.gameState == .blocksScattered {
+        if viewModel.gameState.supportsRouteBuilding {
             // Same 3D entity hit-test as the UFO tap above. handleBlockTapped() itself checks
             // whether the tap actually landed close enough to collect (BlockProximitySystem's
             // isInRange), so a tap on a too-far block is just ignored, not an error.
             let tappedEntity = content.entity(at: location, in: .local)
             if let tappedEntity {
+                if viewModel.handleTravelUFOTapped(tappedEntity) { return }
                 viewModel.handleBlockTapped(tappedEntity)
             }
             return
@@ -106,6 +190,17 @@ struct ContentView: View {
             return
         }
         viewModel.confirmPlacement(at: tappedPoint)
+    }
+
+    private func inspectionControlPosition(in size: CGSize) -> CGPoint {
+        let ufoPosition = viewModel.ufoInspectionScreenPosition
+            ?? CGPoint(x: size.width / 2, y: size.height * 0.38)
+        let halfPanelWidth: CGFloat = 118
+        let panelHalfHeight: CGFloat = 105
+        return CGPoint(
+            x: min(max(ufoPosition.x, halfPanelWidth), size.width - halfPanelWidth),
+            y: min(max(ufoPosition.y + 125, panelHalfHeight), size.height - panelHalfHeight)
+        )
     }
 }
 
