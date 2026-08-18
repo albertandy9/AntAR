@@ -12,6 +12,11 @@ import simd
 /// positive line signal. On reaching the authored ant nest the system reports `ufoReachedHome`
 /// instead of mutating the global state itself.
 public struct UFOPathFollowingSystem: System {
+    /// RealityKit can expose a newly attached component to an EntityQuery one render update after
+    /// the placement callback. Avoid turning that synchronization frame into a permanent no-path
+    /// stall before the placed tile becomes queryable.
+    private static let placedTileQueryGraceDuration: Float = 0.20
+
     public static let dependencies: [SystemDependency] = [
         .after(IRSimulationSystem.self),
         .after(UFOControlSystem.self)
@@ -88,6 +93,20 @@ public struct UFOPathFollowingSystem: System {
                 continue
             }
 
+            // Repair a transient no-path classification if a newly placed light block entered
+            // the ECS query on the following frame. This runs even after the control system has
+            // released throttle, so the user receives the correct explanation without retrying.
+            if follower.state == .stalled,
+               follower.stallReason == .noPath,
+               let delayedTarget = tiles.first(where: {
+                   $0.1.order == follower.currentTargetOrder
+               }),
+               !delayedTarget.2.isValidPath {
+                follower.stallReason = .lightBlockReflectsIR
+                ufo.components[UFOPathFollowerComponent.self] = follower
+                continue
+            }
+
             guard control.isPedalPressed else {
                 follower.leftMotorPower = 0
                 follower.rightMotorPower = 0
@@ -102,22 +121,23 @@ public struct UFOPathFollowingSystem: System {
             )
 
             guard follower.state == .following else {
+                if follower.state == .idle, follower.moveRequested {
+                    follower.lineLostDuration += Float(context.deltaTime)
+                    if follower.lineLostDuration >= Self.placedTileQueryGraceDuration {
+                        stall(&follower, reason: .noPath)
+                    }
+                }
                 ufo.components[UFOPathFollowerComponent.self] = follower
                 continue
             }
 
             let decision = IRLineFollowingPolicy.decide(lineSignals: sensorArray.lineSignals)
             if let target = tiles.first(where: { $0.1.order == follower.currentTargetOrder }) {
-                let isDetectingReflectedTile = zip(
-                    sensorArray.sampledReflectance,
-                    sensorArray.isSamplingTile
-                ).contains { reflectance, isSamplingTile in
-                    isSamplingTile && reflectance >= 0.75
-                }
-
-                // Do not stop before the learner can see the result. The UFO approaches a light
-                // block, its beam turns yellow from the IR simulation, and then it stalls.
-                if !target.2.isValidPath && isDetectingReflectedTile {
+                // The ordered tile list already proves that a block exists in the next slot.
+                // Classify its authored IR material before applying the no-signal timeout;
+                // otherwise the short gap before the sensors physically overlap a bright block
+                // is incorrectly reported as an empty route.
+                if !target.2.isValidPath {
                     stall(&follower, reason: .lightBlockReflectsIR)
                     ufo.components[UFOPathFollowerComponent.self] = follower
                     continue
@@ -129,7 +149,6 @@ public struct UFOPathFollowingSystem: System {
                 driveWithSensorArray(
                     ufo,
                     follower: &follower,
-                    toward: target.0.position(relativeTo: nil),
                     deltaTime: Float(context.deltaTime),
                     decision: decision,
                     throttle: control.throttle
@@ -137,32 +156,25 @@ public struct UFOPathFollowingSystem: System {
 
                 if simd_distance(ufo.position(relativeTo: nil), target.0.position(relativeTo: nil))
                     <= UFOPathFollowerComponent.arrivalDistance {
-                    if target.2.isValidPath {
-                        if target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
-                            follower.state = .arrived
-                            follower.moveRequested = false
-                            follower.leftMotorPower = 0
-                            follower.rightMotorPower = 0
-                            if gameState == .ufoTravelling, !follower.completionReported {
-                                report(.ufoReachedHome, on: director)
-                                follower.completionReported = true
-                            }
-                        } else if tiles.contains(where: { $0.1.order == target.1.order + 1 }) {
-                            follower.currentTargetOrder += 1
-                        } else {
-                            waitForNextTile(&follower, after: target.1.order)
+                    if target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
+                        follower.state = .arrived
+                        follower.moveRequested = false
+                        follower.leftMotorPower = 0
+                        follower.rightMotorPower = 0
+                        if gameState == .ufoTravelling, !follower.completionReported {
+                            report(.ufoReachedHome, on: director)
+                            follower.completionReported = true
                         }
+                    } else if tiles.contains(where: { $0.1.order == target.1.order + 1 }) {
+                        follower.currentTargetOrder += 1
                     } else {
-                        stall(&follower, reason: .lightBlockReflectsIR)
+                        waitForNextTile(&follower, after: target.1.order)
                     }
                 }
             } else {
-                // A missing next order is normal while the learner is still constructing the
-                // route. Remain on the last completed tile rather than treating it as failure.
-                follower.state = .idle
-                follower.moveRequested = false
-                follower.leftMotorPower = 0
-                follower.rightMotorPower = 0
+                // Never let waypoint steering pull the UFO into empty space. Missing the next
+                // placed order is an explicit, recoverable no-path stall surfaced by the UI.
+                stall(&follower, reason: .noPath)
             }
 
             ufo.components[UFOPathFollowerComponent.self] = follower
@@ -177,16 +189,17 @@ public struct UFOPathFollowingSystem: System {
         // A placement requests movement immediately. `currentTargetOrder` remembers where an
         // incremental route stopped, so adding block 2 continues from block 1 instead of sending
         // the UFO back to the beginning.
-        guard follower.state == .idle, follower.moveRequested else {
+        let canStart = follower.state == .idle
+            || (follower.state == .stalled && follower.stallReason == .noPath)
+        guard canStart, follower.moveRequested else {
             return
         }
 
         guard let nextTile = tiles.first(where: {
             $0.1.order == follower.currentTargetOrder
         }) else {
-            follower.moveRequested = false
-            follower.leftMotorPower = 0
-            follower.rightMotorPower = 0
+            // Keep the request alive briefly. A genuinely empty slot becomes `.noPath` in
+            // `update`, while a tile placed this frame can enter the query on the next update.
             return
         }
 
@@ -206,12 +219,11 @@ public struct UFOPathFollowingSystem: System {
     }
 
     /// Proportional-derivative steering expressed as differential left/right motor power.
-    /// The waypoint only measures route progress; it does not pull the UFO sideways. All normal
-    /// steering comes from the live weighted sensor-array error.
+    /// The waypoint only measures route progress; it never pulls the UFO through empty space.
+    /// All steering comes from the live weighted sensor-array error.
     private func driveWithSensorArray(
         _ ufo: Entity,
         follower: inout UFOPathFollowerComponent,
-        toward target: SIMD3<Float>,
         deltaTime: Float,
         decision: IRLineFollowingDecision,
         throttle: Float
@@ -237,16 +249,15 @@ public struct UFOPathFollowingSystem: System {
             )
         } else {
             follower.lineLostDuration += deltaTime
-            let position = ufo.position(relativeTo: nil)
-            let targetYaw = atan2(target.x - position.x, target.z - position.z)
-            // A physical controller turns toward the last known side of the line. The authored
-            // waypoint supplies a safe search direction if every sensor temporarily reads white.
-            steering = clamp(shortestAngle(from: currentYaw, to: targetYaw), -0.75, 0.75)
+            follower.leftMotorPower = 0
+            follower.rightMotorPower = 0
 
             if follower.lineLostDuration >= UFOPathFollowerComponent.maximumLineLostDuration {
                 stall(&follower, reason: .noPath)
-                return
             }
+            // A physical line follower cannot safely infer a forward route when every sensor is
+            // over empty space. Pause in place during the short debounce window, then stall.
+            return
         }
 
         let availablePower = min(max(throttle, 0), 1)
@@ -282,10 +293,6 @@ public struct UFOPathFollowingSystem: System {
         )
     }
 
-    private func shortestAngle(from current: Float, to target: Float) -> Float {
-        atan2(sin(target - current), cos(target - current))
-    }
-
     private func clamp(_ value: Float, _ minimum: Float, _ maximum: Float) -> Float {
         min(max(value, minimum), maximum)
     }
@@ -294,15 +301,13 @@ public struct UFOPathFollowingSystem: System {
         follower.state = .stalled
         follower.stallReason = reason
         follower.moveRequested = false
+        follower.leftMotorPower = 0
+        follower.rightMotorPower = 0
     }
 
     private func waitForNextTile(_ follower: inout UFOPathFollowerComponent, after order: Int) {
-        follower.state = .idle
-        follower.stallReason = nil
-        follower.moveRequested = false
         follower.currentTargetOrder = order + 1
-        follower.leftMotorPower = 0
-        follower.rightMotorPower = 0
+        stall(&follower, reason: .noPath)
     }
 
     private func report(_ event: GameEvent, on director: Entity) {

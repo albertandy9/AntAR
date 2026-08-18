@@ -61,7 +61,7 @@ public struct IRSimulationSystem: System {
         for ufo in context.entities(matching: Self.ufoQuery, updatingSystemWhen: .rendering) {
             guard var readings = ufo.components[IRSensorArrayComponent.self] else { continue }
 
-            let sensors = ufo.children.compactMap { sensorEntity -> (Entity, IRSensorComponent)? in
+            let sensors = ufo.antarDescendants().compactMap { sensorEntity -> (Entity, IRSensorComponent)? in
                 guard let sensor = sensorEntity.components[IRSensorComponent.self] else { return nil }
                 return (sensorEntity, sensor)
             }

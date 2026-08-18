@@ -5,12 +5,16 @@
 
 import RealityKit
 
-/// A downward-facing sensor child on the UFO. Its child entity is also the IR beam visual.
+/// Runtime data attached directly to an authored or code-duplicated sensor child of the UFO.
 public struct IRSensorComponent: Component, Codable, Equatable {
     public var index: Int
     public var lateralOffset: Float
     public var range: Float
     public var lineSignal: Float
+    /// The untouched local position from the RCP source sensor. It lets a rebuilt two-sensor
+    /// array return to the authored layout after temporarily expanding to as many as eight.
+    public var sourceLocalPosition: SIMD3<Float>
+    public var isSceneAuthored: Bool
     /// Normalized animation time for the educational IR wavefront visualization.
     public var wavePhase: Float
 
@@ -19,12 +23,16 @@ public struct IRSensorComponent: Component, Codable, Equatable {
         lateralOffset: Float,
         range: Float,
         lineSignal: Float = 0,
+        sourceLocalPosition: SIMD3<Float> = .zero,
+        isSceneAuthored: Bool = false,
         wavePhase: Float = 0
     ) {
         self.index = index
         self.lateralOffset = lateralOffset
         self.range = range
         self.lineSignal = min(max(lineSignal, 0), 1)
+        self.sourceLocalPosition = sourceLocalPosition
+        self.isSceneAuthored = isSceneAuthored
         self.wavePhase = wavePhase - floor(wavePhase)
     }
 }

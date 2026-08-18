@@ -20,7 +20,7 @@ struct UFOTravelControlsView: View {
                     Button {
                         viewModel.requestUFOReset()
                     } label: {
-                        Label("Reset", systemImage: "arrow.counterclockwise")
+                        Label("Atur ulang", systemImage: "arrow.counterclockwise")
                             .font(.headline)
                             .frame(height: 58)
                     }
@@ -87,7 +87,7 @@ struct UFOSensorInspectionView: View {
             Button {
                 viewModel.finishUFOInspection()
             } label: {
-                Text(viewModel.isFinishingUFOInspection ? "Mengembalikan…" : "Done")
+                Text(viewModel.isFinishingUFOInspection ? "Mengembalikan…" : "Selesai")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .frame(height: 34)
@@ -130,7 +130,7 @@ private struct GasPedal: View {
         VStack(spacing: 2) {
             Image(systemName: "arrowtriangle.up.fill")
                 .font(.caption)
-            Text(isPressed ? "THROTTLE ON" : "HOLD GAS PEDAL")
+            Text(isPressed ? "PEDAL AKTIF" : "TAHAN PEDAL GAS")
                 .font(.system(.caption, design: .monospaced).weight(.bold))
             Text(isPressed ? "lepas untuk berhenti" : "tahan untuk jalan")
                 .font(.caption2)
@@ -150,13 +150,26 @@ private struct GasPedal: View {
                 .onEnded { _ in onRelease() }
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Gas pedal")
-        .accessibilityValue(isPressed ? "Pressed" : "Released")
+        .accessibilityLabel("Pedal gas")
+        .accessibilityValue(isPressed ? "Ditekan" : "Dilepas")
     }
 }
 
 private struct IRIntensityPanel: View {
     @Bindable var viewModel: ARExperienceViewModel
+
+    private var routeStatus: (text: String, color: Color) {
+        switch viewModel.ufoStallReason {
+        case .noPath:
+            ("TIDAK ADA BALOK", .orange)
+        case .lightBlockReflectsIR:
+            ("BALOK TIDAK GELAP", .yellow)
+        case nil where viewModel.isIRLineDetected:
+            ("JALUR TERDETEKSI", .green)
+        case nil:
+            ("JALUR HILANG", .red)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 9) {
@@ -170,9 +183,9 @@ private struct IRIntensityPanel: View {
                         .foregroundStyle(.white.opacity(0.52))
                 }
                 Spacer()
-                Text(viewModel.isIRLineDetected ? "LINE LOCKED" : "LINE LOST")
+                Text(routeStatus.text)
                     .font(.caption2.monospaced().weight(.bold))
-                    .foregroundStyle(viewModel.isIRLineDetected ? Color.green : Color.red)
+                    .foregroundStyle(routeStatus.color)
             }
 
             HStack(alignment: .bottom, spacing: 7) {
@@ -185,9 +198,9 @@ private struct IRIntensityPanel: View {
             }
 
             HStack {
-                Text(String(format: "ERROR %+.2f", viewModel.irLinePosition))
+                Text(String(format: "GALAT %+.2f", viewModel.irLinePosition))
                 Spacer()
-                Text(String(format: "MOTOR L %02.0f%% R %02.0f%%", viewModel.leftMotorPower * 100, viewModel.rightMotorPower * 100))
+                Text(String(format: "MOTOR Ki %02.0f%% Ka %02.0f%%", viewModel.leftMotorPower * 100, viewModel.rightMotorPower * 100))
             }
             .font(.caption2.monospaced())
             .foregroundStyle(.white.opacity(0.68))

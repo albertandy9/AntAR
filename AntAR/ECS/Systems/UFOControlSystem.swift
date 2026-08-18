@@ -60,6 +60,15 @@ public struct UFOControlSystem: System {
             follower.moveRequested = true
         }
 
+        // Placing the missing next block raises `moveRequested`. Rearm only the recoverable
+        // no-path stall; reflected-light stalls still require an explicit reset.
+        if follower.state == .stalled,
+           follower.stallReason == .noPath,
+           follower.moveRequested {
+            follower.state = .idle
+            follower.stallReason = nil
+        }
+
         // A stalled or arrived machine cannot keep consuming throttle after its control leaves
         // the screen. Reset is deliberately required before a new run from either terminal state.
         if follower.state == .stalled || follower.state == .arrived {

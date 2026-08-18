@@ -26,6 +26,9 @@ final class ARExperienceViewModel {
     var isInspectingUFO = false
     var isFinishingUFOInspection = false
     var ufoInspectionScreenPosition: CGPoint?
+    var ufoStallReason: UFOStallReason?
+    var travelWarningTitle = "UFO berhenti"
+    var travelWarningMessage: String?
     private(set) var placementAnchor: Entity?
 
     /// Every block collected so far, in tap order — drives BlockInventoryView. Nothing in the AR
@@ -69,6 +72,7 @@ final class ARExperienceViewModel {
     private var hasReportedUFOMoveRequested = false
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
+    @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
 
     private var masterScene: Entity?
 
@@ -705,6 +709,8 @@ final class ARExperienceViewModel {
         control.requestReset()
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+        ufoStallReason = nil
+        travelWarningMessage = nil
     }
 
     /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
@@ -822,6 +828,7 @@ final class ARExperienceViewModel {
             rightMotorPower = follower.rightMotorPower
         }
         if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
+        updateTravelWarning(for: follower.stallReason)
     }
 
     private func bindTravelEntities(in scene: Entity) {
@@ -859,14 +866,44 @@ final class ARExperienceViewModel {
         guard isTravelUFOReady,
               gameState.supportsRouteBuilding,
               let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
-              var follower = ufo.components[UFOPathFollowerComponent.self],
-              follower.state == .idle else {
+              var follower = ufo.components[UFOPathFollowerComponent.self] else {
             return
         }
+        let canRequestMovement = follower.state == .idle
+            || (follower.state == .stalled && follower.stallReason == .noPath)
+        guard canRequestMovement else { return }
+
         ufo.isEnabled = true
         setIRVisualsEnabled(true, on: ufo)
         follower.moveRequested = true
         ufo.components[UFOPathFollowerComponent.self] = follower
+    }
+
+    func dismissTravelWarning() {
+        travelWarningMessage = nil
+    }
+
+    private func updateTravelWarning(for reason: UFOStallReason?) {
+        if ufoStallReason != reason { ufoStallReason = reason }
+        guard reason != lastObservedUFOStallReason else { return }
+        lastObservedUFOStallReason = reason
+
+        travelWarningTitle = switch reason {
+        case .noPath:
+            "Tidak ada balok di depan"
+        case .lightBlockReflectsIR:
+            "Balok bukan jalur gelap"
+        case nil:
+            "UFO berhenti"
+        }
+        travelWarningMessage = switch reason {
+        case .noPath:
+            "Tidak ada jalur di depan. UFO tidak dapat bergerak maju. Tambahkan balok jalur untuk melanjutkan."
+        case .lightBlockReflectsIR:
+            "Warna balok di depan tidak cukup gelap dan memantulkan inframerah. UFO berhenti karena balok ini bukan jalur yang dapat diikuti."
+        case nil:
+            nil
+        }
     }
 
     private func releaseGasPedal() {
@@ -877,7 +914,7 @@ final class ARExperienceViewModel {
     }
 
     private func setIRVisualsEnabled(_ enabled: Bool, on ufo: Entity) {
-        for child in ufo.children where child.components[IRSensorComponent.self] != nil {
+        for child in ufo.antarDescendants() where child.components[IRSensorComponent.self] != nil {
             child.isEnabled = enabled
         }
     }
