@@ -34,6 +34,11 @@ final class ARExperienceViewModel {
     var isBlockTooFarWarning = false
     var travelWarningTitle = "UFO berhenti"
     var travelWarningMessage: String?
+    // True the moment the player presses the gas pedal before any block is placed — set by
+    // setGasPedalPressed, cleared by dismissBoardHint() (tapping the bubble). Presentation lives
+    // in ContentView (BoardHintBubbleView), reusing SpeechBubbleView's same visual language as
+    // StoryBubbleSequenceView's other beats.
+    var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
     private(set) var ufoDirection: CGVector?
@@ -777,7 +782,20 @@ final class ARExperienceViewModel {
     }
 
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
+    ///
+    /// The pedal itself is always pressable in the UI now (not disabled/dimmed just because no
+    /// blocks are placed yet — see UFOTravelControlsView) — pressing it before hasPlacedBlocks is
+    /// true surfaces the board-hint speech bubble (isShowingBoardHint, dismissed by tapping it —
+    /// see dismissBoardHint()) instead of silently doing nothing, so the player learns why the UFO
+    /// isn't moving instead of just seeing an inert button. Was a system alert; the actual copy
+    /// ("UFO nya belum bisa jalan nih...") already existed as StoryBubbleSequenceView's boardHint
+    /// beat, so this reuses that same bubble presentation instead of a second, redundant one.
     func setGasPedalPressed(_ pressed: Bool) {
+        if pressed, !hasPlacedBlocks {
+            isShowingBoardHint = true
+            return
+        }
+
         guard canUseGasPedal,
               masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
                 .components[UFOInspectionComponent.self]?.isActive != true,
@@ -791,6 +809,9 @@ final class ARExperienceViewModel {
         isGasPedalPressed = pressed
     }
 
+    func dismissBoardHint() {
+        isShowingBoardHint = false
+    }
 
     func requestUFOReset() {
         guard isTravelUFOReady,
@@ -989,15 +1010,21 @@ final class ARExperienceViewModel {
     func dismissTravelWarning() {
         travelWarningMessage = nil
         isSensorStabilityWarning = false
-        isBlockTooFarWarning = false
     }
 
+    /// isBlockTooFarWarning now drives BoardHintBubbleView-style banner presentation
+    /// (InstructionBanner in ContentView), not the .alert() dialog — it no longer needs a tap to
+    /// dismiss, it just times out on its own. Kept as the same property/name since
+    /// updateTravelWarning's own guard (`!isBlockTooFarWarning`) still needs it to avoid a stall
+    /// alert interrupting this banner while it's showing.
     private func presentBlockTooFarWarning() {
         releaseGasPedal()
-        isSensorStabilityWarning = false
         isBlockTooFarWarning = true
-        travelWarningTitle = "Balok terlalu jauh"
-        travelWarningMessage = "Mendekatlah ke balok, lalu ketuk lagi untuk mengambilnya."
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.2))
+            guard let self, self.isBlockTooFarWarning else { return }
+            self.isBlockTooFarWarning = false
+        }
     }
 
     private func presentSensorStabilityWarningIfNeeded(

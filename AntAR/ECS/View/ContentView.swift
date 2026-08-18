@@ -61,6 +61,32 @@ struct ContentView: View {
                     .ignoresSafeArea()
             }
 
+            // Top-left corner, independent of the bottom-anchored VStack below. Visible from
+            // .blocksScattered onward (same as UFOTravelControlsView below, and the reason given
+            // there) rather than the old !collectedBlocks.isEmpty || hasPlacedBlocks — empty slots
+            // just show the empty-state icon, same as always. onGeometryChange still feeds
+            // ContentView's drag-to-return hit test via inventoryFrame, unchanged.
+            if viewModel.gameState.supportsRouteBuilding {
+                VStack {
+                    HStack {
+                        BlockInventoryView(
+                            collectedBlocks: viewModel.collectedBlocks,
+                            isReturnTargeted: isInventoryReturnTargeted
+                        )
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            inventoryFrame = frame
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                // 150, not 100 — still sat too high, wanted lower/more centered vertically.
+                .padding(.top, 150)
+                .padding(.leading, 16)
+            }
+
             VStack {
                 GameOverlayView(
                     state: viewModel.gameState,
@@ -83,20 +109,20 @@ struct ContentView: View {
                         .ignoresSafeArea(edges: .bottom)
                 }
 
-                if !viewModel.collectedBlocks.isEmpty || viewModel.hasPlacedBlocks {
-                    BlockInventoryView(
-                        collectedBlocks: viewModel.collectedBlocks,
-                        isReturnTargeted: isInventoryReturnTargeted
-                    )
-                    .onGeometryChange(for: CGRect.self) { geometry in
-                        geometry.frame(in: .global)
-                    } action: { frame in
-                        inventoryFrame = frame
-                    }
-                    .padding(.bottom, 24)
+                // Auto-dismissing (ARExperienceViewModel.presentBlockTooFarWarning times it out
+                // itself, ~2.2s) — right above the IR panel it's warning about, not near the top
+                // of the screen.
+                if viewModel.isBlockTooFarWarning {
+                    BlockOutOfRangeBanner()
+                        .transition(.opacity)
                 }
 
-                if viewModel.canControlUFO {
+                // Visible from .blocksScattered onward (as soon as the environment appears, same
+                // moment the board-hint bubble can show) — not gated on canControlUFO, which also
+                // requires hasPlacedBlocks and stays the real functional gate for whether the UFO
+                // can actually be driven/inspected (GasPedal's own isEnabled, still wired to
+                // canUseGasPedal below, keeps the pedal itself dimmed/inert until that's true).
+                if viewModel.gameState.supportsRouteBuilding {
                     UFOTravelControlsView(
                         viewModel: viewModel,
                         onInspectUFO: viewModel.beginUFOInspection
@@ -105,15 +131,20 @@ struct ContentView: View {
                     .padding(.bottom, 24)
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isBlockTooFarWarning)
 
             StoryBubbleSequenceView(
-                gameState: viewModel.gameState,
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,
                 hasTappedUFO: viewModel.hasTappedUFO,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
-                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
-                onBoardHintDismissed: {}
+                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
             )
+
+            // Response to a failed gas-pedal press (setGasPedalPressed), not part of the timed
+            // story sequence above — see BoardHintBubbleView's header.
+            if viewModel.isShowingBoardHint {
+                BoardHintBubbleView(onDismiss: { viewModel.dismissBoardHint() })
+            }
 
             if viewModel.isInspectingUFO {
                 GeometryReader { geometry in
