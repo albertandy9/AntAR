@@ -32,6 +32,7 @@ final class ARExperienceViewModel {
     var ufoStallReason: UFOStallReason?
     var isBlockTooFarWarning = false
     private(set) var activeTravelDialogue: UFOTravelDialogue?
+    private(set) var isAwaitingSensorInspectionTap = false
     var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
@@ -100,6 +101,7 @@ final class ARExperienceViewModel {
     @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
     @ObservationIgnored private var pendingTravelDialogues: [UFOTravelDialogue] = []
+    @ObservationIgnored private var shouldPromptSensorInspectionWhenDialoguesFinish = false
     @ObservationIgnored private var hasShownFirstPathDialogue = false
     @ObservationIgnored private var hasShownSensorAdjustmentDialogue = false
     @ObservationIgnored private var hasShownSensorCalibratedDialogue = false
@@ -360,6 +362,22 @@ final class ARExperienceViewModel {
     }
 
     func refreshUFODirectionIndicator(using arView: ARView) {
+        if gameState.supportsRouteBuilding {
+            ufoDirection = nil
+            guard isAwaitingSensorInspectionTap,
+                  !isInspectingUFO,
+                  let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+                  ufo.isEnabled,
+                  let position = arView.project(ufo.position(relativeTo: nil)),
+                  arView.bounds.insetBy(dx: -24, dy: -24).contains(position) else {
+                ufoTapScreenPosition = nil
+                return
+            }
+
+            ufoTapScreenPosition = position
+            return
+        }
+
         guard gameState == .ufoAppears,
               let masterScene,
               let ufo = masterScene.findEntity(named: "ufo_angkat_semut"),
@@ -430,6 +448,10 @@ final class ARExperienceViewModel {
         }
 
         beginUFOInspection()
+        if isInspectingUFO {
+            isAwaitingSensorInspectionTap = false
+            ufoTapScreenPosition = nil
+        }
         return true
     }
 
@@ -827,6 +849,9 @@ final class ARExperienceViewModel {
         ufoStallReason = nil
         activeTravelDialogue = nil
         pendingTravelDialogues.removeAll()
+        shouldPromptSensorInspectionWhenDialoguesFinish = false
+        isAwaitingSensorInspectionTap = false
+        ufoTapScreenPosition = nil
     }
 
     /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
@@ -843,6 +868,8 @@ final class ARExperienceViewModel {
         releaseGasPedal()
         inspection.present()
         ufo.components[UFOInspectionComponent.self] = inspection
+        isAwaitingSensorInspectionTap = false
+        ufoTapScreenPosition = nil
         isInspectingUFO = true
         isFinishingUFOInspection = false
     }
@@ -1014,12 +1041,17 @@ final class ARExperienceViewModel {
     func completeTravelDialogue(_ dialogue: UFOTravelDialogue) {
         guard activeTravelDialogue == dialogue else { return }
 
+        if dialogue == .sensorAdjustment {
+            shouldPromptSensorInspectionWhenDialoguesFinish = true
+        }
+
         activeTravelDialogue = pendingTravelDialogues.isEmpty
             ? nil
             : pendingTravelDialogues.removeFirst()
 
-        if dialogue == .sensorAdjustment, activeTravelDialogue == nil {
-            beginUFOInspection()
+        if activeTravelDialogue == nil, shouldPromptSensorInspectionWhenDialoguesFinish {
+            shouldPromptSensorInspectionWhenDialoguesFinish = false
+            isAwaitingSensorInspectionTap = true
         }
     }
 

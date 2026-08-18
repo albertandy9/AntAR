@@ -80,14 +80,29 @@ struct SpeechBubbleView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            Text("...")
-                .font(.custom("Fredoka-Regular", size: 20))
-                .foregroundStyle(Self.textColor)
+            DialogueAdvanceIndicator()
                 .padding(.trailing, 16)
                 .padding(.bottom, 8)
                 .accessibilityHidden(true)
         }
         .animation(.default, value: text)
+    }
+}
+
+/// Shared Figma-style affordance for every tappable dialogue bubble.
+struct DialogueAdvanceIndicator: View {
+    private static let fill = Color(red: 210 / 255, green: 239 / 255, blue: 241 / 255)
+    private static let ink = Color(red: 35 / 255, green: 85 / 255, blue: 99 / 255)
+
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Self.ink)
+            .offset(x: 1)
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(Self.fill))
+            .overlay(Circle().stroke(Self.ink, lineWidth: 2))
+            .shadow(color: Self.ink.opacity(0.75), radius: 0, y: 3)
     }
 }
 

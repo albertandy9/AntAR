@@ -52,9 +52,7 @@ struct BoardHintBubbleView: View {
                                 .shadow(color: bubbleShadowColor, radius: 0, x: 0, y: 6)
                         )
                         .overlay(alignment: .bottomTrailing) {
-                            Text("...")
-                                .font(.custom("Fredoka-Regular", size: 20))
-                                .foregroundStyle(.white)
+                            DialogueAdvanceIndicator()
                                 .padding(.trailing, 16)
                                 .padding(.bottom, 8)
                                 .accessibilityHidden(true)

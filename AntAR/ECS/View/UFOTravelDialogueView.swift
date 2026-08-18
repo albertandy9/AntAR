@@ -47,11 +47,7 @@ struct UFOTravelDialogueView: View {
                                 .shadow(color: Self.bubbleShadow, radius: 0, x: 2, y: 6)
                         )
                         .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(Self.bubbleShadow)
-                                .frame(width: 22, height: 22)
-                                .background(Circle().fill(Self.textColor))
+                            DialogueAdvanceIndicator()
                                 .padding(.trailing, 9)
                                 .padding(.bottom, 8)
                         }
