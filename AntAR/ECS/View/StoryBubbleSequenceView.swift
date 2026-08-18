@@ -24,6 +24,10 @@ struct StoryBubbleSequenceView: View {
     // Called exactly once, the moment the player dismisses the board-finding hint — ContentView
     // uses this to keep the inventory panel and travel-controls HUD fully hidden until then.
     let onBoardHintDismissed: () -> Void
+    // Both already exposed by ARExperienceViewModel for the travel-controls HUD/warning alert —
+    // reused here as-is, not new state, to drive the two gas-pedal-result bubbles below.
+    let isGasPedalPressed: Bool
+    let ufoStallReason: UFOStallReason?
 
     private struct Beat {
         let text: String
@@ -81,16 +85,55 @@ struct StoryBubbleSequenceView: View {
         )
     ]
 
+    // Not part of the sequential `beats`/currentIndex queue above — that queue is a one-time,
+    // in-order onboarding sequence. This is reactive gameplay feedback that can legitimately fire
+    // again on every retry (place board, hold gas pedal, release), so it's tracked independently.
+    // Each case is its own 2-line tap-to-advance sequence (what happened, then why).
+    private enum GasPedalResult {
+        case success
+        case failure
+
+        var lines: [String] {
+            switch self {
+            case .success:
+                return [
+                    "Yey UFO berhasil jalan...",
+                    "UFO bisa jalan karena sinar inframerah yang dipancarkan berhasil di serap oleh papan."
+                ]
+            case .failure:
+                return [
+                    "Eh.. tadi kok jalannya UFO oleng...",
+                    "Sepertinya jumlah sensornya perlu disesuaikan. Coba lihat kebawah UFO."
+                ]
+            }
+        }
+    }
+
     @State private var currentIndex = 0
     // Set once, the instant each trigger condition first becomes true — the anchor a TimelineView
     // tick measures elapsed time against, not a cancellable timer.
     @State private var releasingStartedAt: Date?
     @State private var ufoTappedAt: Date?
     @State private var blocksScatteredStartedAt: Date?
+    @State private var gasPedalResult: GasPedalResult?
+    @State private var gasPedalResultStep = 0
+    @State private var wasGasPedalPressed = false
+    // True the moment a stall is actually observed during the current hold — read at release
+    // time, ufoStallReason was almost always still nil (ARExperienceViewModel only updates it
+    // from a ~20Hz ECS refresh, so it regularly lagged behind setGasPedalPressed(false), which
+    // fires synchronously the instant the finger lifts). Catching the stall in real time via its
+    // own onChange below, instead of re-reading it at release, is what actually fixes that race.
+    @State private var stalledDuringThisHold = false
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { timeline in
-            content(now: timeline.date)
+        ZStack {
+            TimelineView(.periodic(from: .now, by: 0.1)) { timeline in
+                content(now: timeline.date)
+            }
+
+            if let gasPedalResult {
+                gasPedalResultBubble(for: gasPedalResult)
+            }
         }
         .onChange(of: lostAntGreetPhase, initial: true) { _, newPhase in
             if releasingStartedAt == nil, Self.hasReached(.releasing, newPhase) {
@@ -106,6 +149,26 @@ struct StoryBubbleSequenceView: View {
             if blocksScatteredStartedAt == nil, Self.hasReached(.blocksScattered, newState) {
                 blocksScatteredStartedAt = Date()
             }
+        }
+        .onChange(of: isGasPedalPressed) { _, isPressed in
+            if isPressed {
+                // A fresh attempt — clear any old result and stop tracking the previous hold's
+                // stall so it can't leak into this one's outcome.
+                stalledDuringThisHold = false
+                gasPedalResult = nil
+                gasPedalResultStep = 0
+            } else if wasGasPedalPressed, !stalledDuringThisHold {
+                // Released, and nothing stalled while it was down — that's a clean success.
+                gasPedalResult = .success
+            }
+            wasGasPedalPressed = isPressed
+        }
+        // The failure case is caught here, in real time, the instant it happens — not by
+        // re-reading ufoStallReason at release (see stalledDuringThisHold's comment above).
+        .onChange(of: ufoStallReason) { _, reason in
+            guard reason != nil, wasGasPedalPressed else { return }
+            stalledDuringThisHold = true
+            gasPedalResult = .failure
         }
     }
 
@@ -167,6 +230,41 @@ struct StoryBubbleSequenceView: View {
         .padding(.trailing, 15)
     }
 
+    /// Same SpeechBubbleView + avatar language as the ant-dialogue beats above, not a separate
+    /// popup style — two lines, tap to advance from "what happened" to "why", then tap again to
+    /// dismiss. Positioned by screen-height fraction (not a fixed .padding(.bottom, N)) so it
+    /// consistently lands just above the Infrared Activation Bar panel regardless of the travel
+    /// HUD's actual height, which varies with sensor count/warnings.
+    //
+    // NOTE: reuses "Group 44" for both outcomes — there's no separate happy/confused ant-bust
+    // asset in Assets.xcassets to match the two different expressions shown in the reference
+    // images. If those get added (same way the Figma exports like "Group 44" itself were), swap
+    // the name below per case.
+    private func gasPedalResultBubble(for result: GasPedalResult) -> some View {
+        GeometryReader { geometry in
+            HStack {
+                Spacer(minLength: 0)
+                SpeechBubbleView(text: result.lines[gasPedalResultStep], avatarImageName: "Group 44")
+                    .contentShape(Rectangle())
+                    .onTapGesture { advanceGasPedalResult(result) }
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 24)
+            .padding(.trailing, 15)
+            .position(x: geometry.size.width / 2, y: geometry.size.height * 0.44)
+        }
+    }
+
+    private func advanceGasPedalResult(_ result: GasPedalResult) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if gasPedalResultStep < result.lines.count - 1 {
+            gasPedalResultStep += 1
+        } else {
+            gasPedalResult = nil
+            gasPedalResultStep = 0
+        }
+    }
+
     private func advance() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let dismissedBeat = Self.beats[currentIndex]
@@ -224,7 +322,9 @@ struct StoryBubbleSequenceView: View {
             hasTappedUFO: true,
             onUFOStoryDismissed: {},
             onAntDialogueDismissed: {},
-            onBoardHintDismissed: {}
+            onBoardHintDismissed: {},
+            isGasPedalPressed: false,
+            ufoStallReason: nil
         )
     }
 }

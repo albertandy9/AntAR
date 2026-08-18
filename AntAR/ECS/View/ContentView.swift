@@ -112,7 +112,9 @@ struct ContentView: View {
                 hasTappedUFO: viewModel.hasTappedUFO,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
                 onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
-                onBoardHintDismissed: {}
+                onBoardHintDismissed: {},
+                isGasPedalPressed: viewModel.isGasPedalPressed,
+                ufoStallReason: viewModel.ufoStallReason
             )
 
             if viewModel.isInspectingUFO {
