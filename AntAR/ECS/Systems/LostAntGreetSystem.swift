@@ -133,7 +133,10 @@ public struct LostAntGreetSystem: System {
                     opacity.opacity = fadeT
                     ant.components[OpacityComponent.self] = opacity
                 }
-                if greet.phaseElapsed >= Self.releaseDuration {
+                // Also requires isDialogueDismissed (set externally once the player has tapped
+                // through both dialogue lines) — releaseDuration alone is a floor, not enough on
+                // its own if the player is still reading past it.
+                if greet.phaseElapsed >= Self.releaseDuration && greet.isDialogueDismissed {
                     advance(&greet, to: .returning, on: ant)
                 }
 

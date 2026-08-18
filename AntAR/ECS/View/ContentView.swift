@@ -15,24 +15,24 @@ struct ContentView: View {
     // Captured from ARViewContainer via binding so the tap gesture (called independently by
     // SwiftUI) can still reach entity(at:)/ray(through:).
     @State private var arView: ARView?
-    // Gates the AR experience behind HomeScreenView — camera permission + tracking (the .task
+    // Gates the AR experience behind OnboardingView — camera permission + tracking (the .task
     // below) only start once this flips true, not on launch.
     @State private var hasStartedExperience = false
     // Gates ARViewContainer specifically (not the whole overlay UI) behind an explicit camera
     // permission result, same "don't touch the camera until we know we're allowed to" gating
-    // hasStartedExperience already does at the HomeScreenView level.
+    // hasStartedExperience already does at the OnboardingView level.
     @State private var isCameraAuthorized = false
-    // True only 2s after .releasing begins, not the instant it begins — the ant reveal/"Turunkan
-    // tanganmu"/hand overlay disappearing all happen together at the start of .releasing, but the
-    // dialogue bubble should wait a beat after that before showing up. Driven by the .task(id:)
-    // below rather than a direct phase check, since it needs its own delayed timer.
-    @State private var showLostAntBubble = false
+    // The inventory panel and travel-controls HUD stay fully hidden until the player has seen and
+    // dismissed the board-finding hint, rather than appearing as soon as a block happens to be
+    // collected or state reaches .ufoTravelling. Set once by StoryBubbleSequenceView's
+    // onBoardHintDismissed and never reset — the hint itself never shows again either.
+    @State private var hasSeenBoardHint = false
 
     var body: some View {
         if hasStartedExperience {
             arExperience
         } else {
-            HomeScreenView(onStart: { hasStartedExperience = true })
+            OnboardingView(onFinish: { hasStartedExperience = true })
         }
     }
 
@@ -67,7 +67,9 @@ struct ContentView: View {
                     isTableReadyToPlace: viewModel.isTableReadyToPlace,
                     lostAntGreetPhase: viewModel.lostAntGreetPhase,
                     isCoachingOverlayActive: viewModel.isCoachingOverlayActive,
-                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable
+                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable,
+                    ufoDirection: viewModel.ufoDirection,
+                    hasTappedUFO: viewModel.hasTappedUFO
                 )
                 .padding(.top, 24)
 
@@ -86,42 +88,44 @@ struct ContentView: View {
                         .ignoresSafeArea(edges: .bottom)
                 }
 
-                // Bottom-left, not GameOverlayView's top slot — see LostAntChatBubbleView's header.
-                // Gated on showLostAntBubble (set 2s after .releasing begins, see the .task(id:)
-                // below), not phase directly — the ant reveal/"Turunkan tanganmu" happen right as
-                // .releasing starts, but the dialogue itself waits a beat after that.
-                if showLostAntBubble {
-                    LostAntChatBubbleView()
-                        .padding(.bottom, 24)
-                }
-
-                if !viewModel.collectedBlocks.isEmpty {
-                    BlockInventoryView(collectedBlocks: viewModel.collectedBlocks)
-                        .padding(.bottom, 24)
-                }
-
-                if viewModel.gameState == .ufoTravelling {
+                // Visible as soon as the board hint is dismissed — not gated on .ufoTravelling too.
+                // The sensor/motor readouts inside just show their idle zero state until the UFO
+                // actually starts moving; the panel itself (Reset, gas pedal, sensor stepper) is
+                // meant to already be on screen by then, not pop in later.
+                if hasSeenBoardHint {
                     UFOTravelControlsView(viewModel: viewModel)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                 }
             }
+
+            // Middle-left edge, not the old bottom bar — separate HStack row so it doesn't share
+            // the vertical VStack's flow above. Visible as soon as the board hint is dismissed,
+            // not gated on collectedBlocks being non-empty — the 4 empty slots are themselves the
+            // "here's where blocks go" cue.
+            if hasSeenBoardHint {
+                HStack {
+                    BlockInventoryView(collectedBlocks: viewModel.collectedBlocks)
+                        .padding(.leading, 16)
+                    Spacer()
+                }
+            }
+
+            // Last in the ZStack so it draws on top of everything else above, including the UFO
+            // direction indicator — see StoryBubbleSequenceView's header for why every dialogue
+            // beat (ant + UFO + board hint) lives in one shared queue outside GameOverlayView's
+            // per-state switch, instead of three independently-gated overlays.
+            StoryBubbleSequenceView(
+                gameState: viewModel.gameState,
+                lostAntGreetPhase: viewModel.lostAntGreetPhase,
+                hasTappedUFO: viewModel.hasTappedUFO,
+                onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
+                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
+                onBoardHintDismissed: { hasSeenBoardHint = true }
+            )
         }
         .task {
             isCameraAuthorized = await AVCaptureDevice.requestAccess(for: .video)
-        }
-        // Re-runs (cancelling any pending sleep) every time lostAntGreetPhase changes. Only
-        // .releasing schedules the 2s delay; every other phase — including leaving .releasing —
-        // resets showLostAntBubble to false immediately.
-        .task(id: viewModel.lostAntGreetPhase) {
-            guard viewModel.lostAntGreetPhase == .releasing else {
-                showLostAntBubble = false
-                return
-            }
-            showLostAntBubble = false
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            showLostAntBubble = true
         }
     }
 

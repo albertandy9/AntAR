@@ -29,6 +29,11 @@ final class ARExperienceViewModel {
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
     private(set) var ufoDirection: CGVector?
+    // Additive, read-only signal for StoryBubbleSequenceView: the UFO story beats should only
+    // show once the player has actually found and tapped the UFO, not the instant it spawns.
+    // Doesn't change any existing control flow — set once, alongside where UFODescendComponent
+    // already gets attached below, never read by anything else in this file.
+    private(set) var hasTappedUFO = false
 
 
     private(set) var collectedBlocks: [CollectedBlock] = []
@@ -105,8 +110,6 @@ final class ARExperienceViewModel {
                     self?.beginLostAntGreetIfNeeded()
                 } else if state == .ufoAppears {
                     self?.spawnUFOIfNeeded()
-                } else if state == .antEntersUFO {
-                    self?.beginAntBoardingIfNeeded()
                 } else if state == .blocksScattered {
                     self?.beginUFOAscendIfNeeded()
                     self?.spawnBlocksIfNeeded()
@@ -346,6 +349,7 @@ final class ARExperienceViewModel {
         let start = ufo.position(relativeTo: nil)
         let end = target.position(relativeTo: nil)
         ufo.components.set(UFODescendComponent(startPosition: start, targetPosition: end))
+        hasTappedUFO = true
     }
 
 
@@ -358,7 +362,12 @@ final class ARExperienceViewModel {
         return false
     }
 
-    private func beginAntBoardingIfNeeded() {
+    // Not private — StoryBubbleSequenceView calls this once the player has tapped through both
+    // UFO story beats, rather than this firing automatically the instant state reaches
+    // .antEntersUFO. Idempotent via hasStartedAntBoarding either way, so this is safe to call
+    // from a UI event instead of the state observer without changing anything else about how
+    // boarding itself plays out once started.
+    func beginAntBoardingIfNeeded() {
         guard !hasStartedAntBoarding else { return }
         hasStartedAntBoarding = true
         Task { await beginAntBoarding() }
@@ -422,6 +431,18 @@ final class ARExperienceViewModel {
 
 
         lostAntGreetPhase = .arrived
+    }
+
+    // Not private — StoryBubbleSequenceView calls this once the player has tapped through both
+    // ant-dialogue lines. See LostAntGreetComponent.isDialogueDismissed's header comment for why
+    // LostAntGreetSystem needs this signal before it lets the ant shrink back down.
+    func confirmAntDialogueDismissed() {
+        guard let masterScene, let ant = masterScene.findEntity(named: "ant_noanthena"),
+              var greet = ant.components[LostAntGreetComponent.self] else {
+            return
+        }
+        greet.isDialogueDismissed = true
+        ant.components[LostAntGreetComponent.self] = greet
     }
 
 

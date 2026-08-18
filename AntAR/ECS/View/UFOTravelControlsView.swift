@@ -48,37 +48,38 @@ struct UFOTravelControlsView: View {
     }
 }
 
+/// Round pedal button — same cream/bronze palette as BlockInventoryView's slot container
+/// (containerFill/containerBorder there), reusing the "Pedal" asset already added to the catalog.
+/// isPressed is shown by scaling down slightly rather than swapping text, since the reference
+/// design has no label at all, just the icon.
 private struct GasPedal: View {
     let isPressed: Bool
     let onPress: () -> Void
     let onRelease: () -> Void
 
+    private static let diameter: CGFloat = 92
+    private static let fillColor = Color(red: 247 / 255, green: 213 / 255, blue: 168 / 255)
+    private static let borderColor = Color(red: 201 / 255, green: 140 / 255, blue: 68 / 255)
+
     var body: some View {
-        VStack(spacing: 2) {
-            Image(systemName: "arrowtriangle.up.fill")
-                .font(.caption)
-            Text(isPressed ? "THROTTLE ON" : "HOLD GAS PEDAL")
-                .font(.system(.caption, design: .monospaced).weight(.bold))
-            Text(isPressed ? "lepas untuk berhenti" : "tahan untuk jalan")
-                .font(.caption2)
-                .foregroundStyle(.white.opacity(0.70))
-        }
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
-        .frame(height: 62)
-        .background(
-            isPressed ? Color.orange.opacity(0.90) : Color.red.opacity(0.78),
-            in: RoundedRectangle(cornerRadius: 15, style: .continuous)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { _ in onPress() }
-                .onEnded { _ in onRelease() }
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Gas pedal")
-        .accessibilityValue(isPressed ? "Pressed" : "Released")
+        Image("Pedal")
+            .resizable()
+            .scaledToFit()
+            .padding(Self.diameter * 0.26)
+            .frame(width: Self.diameter, height: Self.diameter)
+            .background(Self.fillColor, in: Circle())
+            .overlay(Circle().stroke(Self.borderColor, lineWidth: 3))
+            .scaleEffect(isPressed ? 0.92 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+            .contentShape(Circle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { _ in onPress() }
+                    .onEnded { _ in onRelease() }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Gas pedal")
+            .accessibilityValue(isPressed ? "Pressed" : "Released")
     }
 }
 
@@ -165,5 +166,13 @@ private struct IRIntensityBar: View {
         }
         .foregroundStyle(.white)
         .frame(maxWidth: 34)
+    }
+}
+
+#Preview {
+    ZStack {
+        Color.black.ignoresSafeArea()
+        UFOTravelControlsView(viewModel: ARExperienceViewModel())
+            .padding()
     }
 }
