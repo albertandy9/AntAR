@@ -15,12 +15,12 @@ struct ContentView: View {
     // Captured from ARViewContainer via binding so the tap gesture (called independently by
     // SwiftUI) can still reach entity(at:)/ray(through:).
     @State private var arView: ARView?
-    // Gates the AR experience behind HomeScreenView — camera permission + tracking (the .task
+    // Gates the AR experience behind OnboardingView — camera permission + tracking (the .task
     // below) only start once this flips true, not on launch.
     @State private var hasStartedExperience = false
     // Gates ARViewContainer specifically (not the whole overlay UI) behind an explicit camera
     // permission result, same "don't touch the camera until we know we're allowed to" gating
-    // hasStartedExperience already does at the HomeScreenView level.
+    // hasStartedExperience already does at the OnboardingView level.
     @State private var isCameraAuthorized = false
     // True only 2s after .releasing begins, not the instant it begins — the ant reveal/"Turunkan
     // tanganmu"/hand overlay disappearing all happen together at the start of .releasing, but the
@@ -32,7 +32,7 @@ struct ContentView: View {
         if hasStartedExperience {
             arExperience
         } else {
-            HomeScreenView(onStart: { hasStartedExperience = true })
+            OnboardingView(onFinish: { hasStartedExperience = true })
         }
     }
 
@@ -59,6 +59,21 @@ struct ContentView: View {
             if let ufoDirection = viewModel.ufoDirection {
                 UFODirectionIndicatorView(direction: ufoDirection)
                     .ignoresSafeArea()
+            }
+
+            // Top-left corner, independent of the bottom-anchored VStack below — and independent
+            // of BlockInventoryNotesButton (bottom-right), which used to be bundled with this in
+            // one HStack before the inventory pill moved up here.
+            if !viewModel.collectedBlocks.isEmpty {
+                VStack {
+                    HStack {
+                        BlockInventoryView(collectedBlocks: viewModel.collectedBlocks)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 24)
+                .padding(.leading, 16)
             }
 
             VStack {
@@ -92,11 +107,6 @@ struct ContentView: View {
                 // .releasing starts, but the dialogue itself waits a beat after that.
                 if showLostAntBubble {
                     LostAntChatBubbleView()
-                        .padding(.bottom, 24)
-                }
-
-                if !viewModel.collectedBlocks.isEmpty {
-                    BlockInventoryView(collectedBlocks: viewModel.collectedBlocks)
                         .padding(.bottom, 24)
                 }
 
