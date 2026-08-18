@@ -30,10 +30,8 @@ final class ARExperienceViewModel {
     var isFinishingUFOInspection = false
     var ufoInspectionScreenPosition: CGPoint?
     var ufoStallReason: UFOStallReason?
-    var isSensorStabilityWarning = false
     var isBlockTooFarWarning = false
-    var travelWarningTitle = "UFO berhenti"
-    var travelWarningMessage: String?
+    private(set) var activeTravelDialogue: UFOTravelDialogue?
     var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
@@ -101,7 +99,10 @@ final class ARExperienceViewModel {
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
-    @ObservationIgnored private var hasShownSensorStabilityWarning = false
+    @ObservationIgnored private var pendingTravelDialogues: [UFOTravelDialogue] = []
+    @ObservationIgnored private var hasShownFirstPathDialogue = false
+    @ObservationIgnored private var hasShownSensorAdjustmentDialogue = false
+    @ObservationIgnored private var hasShownSensorCalibratedDialogue = false
 
     private var masterScene: Entity?
 
@@ -824,7 +825,8 @@ final class ARExperienceViewModel {
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
         ufoStallReason = nil
-        travelWarningMessage = nil
+        activeTravelDialogue = nil
+        pendingTravelDialogues.removeAll()
     }
 
     /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
@@ -952,8 +954,10 @@ final class ARExperienceViewModel {
             rightMotorPower = follower.rightMotorPower
         }
         if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
-        updateTravelWarning(for: follower.stallReason)
-        presentSensorStabilityWarningIfNeeded(for: follower)
+        updateTravelDialogue(for: follower.stallReason)
+        presentFirstPathDialogueIfNeeded(for: follower)
+        presentSensorAdjustmentDialogueIfNeeded(for: follower)
+        presentSensorCalibratedDialogueIfNeeded(for: follower)
     }
 
     private func bindTravelEntities(in scene: Entity) {
@@ -1007,9 +1011,16 @@ final class ARExperienceViewModel {
         ufo.components[UFOPathFollowerComponent.self] = follower
     }
 
-    func dismissTravelWarning() {
-        travelWarningMessage = nil
-        isSensorStabilityWarning = false
+    func completeTravelDialogue(_ dialogue: UFOTravelDialogue) {
+        guard activeTravelDialogue == dialogue else { return }
+
+        activeTravelDialogue = pendingTravelDialogues.isEmpty
+            ? nil
+            : pendingTravelDialogues.removeFirst()
+
+        if dialogue == .sensorAdjustment, activeTravelDialogue == nil {
+            beginUFOInspection()
+        }
     }
 
     private func presentBlockTooFarWarning() {
@@ -1022,48 +1033,80 @@ final class ARExperienceViewModel {
         }
     }
 
-    private func presentSensorStabilityWarningIfNeeded(
+    private func presentFirstPathDialogueIfNeeded(
+        for follower: UFOPathFollowerComponent
+    ) {
+        guard !hasShownFirstPathDialogue,
+              follower.state == .following,
+              follower.stallReason == nil,
+              isGasPedalPressed,
+              follower.elapsedTravelTime >= 0.25 else {
+            return
+        }
+
+        hasShownFirstPathDialogue = true
+        enqueueTravelDialogue(.firstPathSuccess)
+    }
+
+    private func presentSensorAdjustmentDialogueIfNeeded(
         for follower: UFOPathFollowerComponent
     ) {
         guard sensorLearningPhase == .upgradeRecommended,
-              !hasShownSensorStabilityWarning,
-              travelWarningMessage == nil,
+              !hasShownSensorAdjustmentDialogue,
               follower.stallReason == nil,
               follower.state != .arrived else {
             return
         }
 
-        hasShownSensorStabilityWarning = true
-        isSensorStabilityWarning = true
+        hasShownSensorAdjustmentDialogue = true
         releaseGasPedal()
-        travelWarningTitle = "Sensor dapat dibuat lebih stabil"
-        travelWarningMessage = "UFO tetap dapat digunakan dengan konfigurasi sensor saat ini. Tambahkan sensor jika ingin pembacaan jalur dan gerakan yang lebih stabil."
+        enqueueTravelDialogue(.sensorAdjustment)
     }
 
-    private func updateTravelWarning(for reason: UFOStallReason?) {
+    private func presentSensorCalibratedDialogueIfNeeded(
+        for follower: UFOPathFollowerComponent
+    ) {
+        guard sensorLearningPhase == .calibrated,
+              !hasShownSensorCalibratedDialogue,
+              follower.state == .following,
+              !isInspectingUFO,
+              isGasPedalPressed,
+              follower.stallReason == nil else {
+            return
+        }
+
+        hasShownSensorCalibratedDialogue = true
+        enqueueTravelDialogue(.sensorCalibrated)
+    }
+
+    private func updateTravelDialogue(for reason: UFOStallReason?) {
         if ufoStallReason != reason { ufoStallReason = reason }
-        // Preserve the proximity explanation until the learner dismisses it. If a UFO stall also
-        // occurred, it will be surfaced on the following telemetry update.
         guard !isBlockTooFarWarning else { return }
         guard reason != lastObservedUFOStallReason else { return }
         lastObservedUFOStallReason = reason
-        if reason != nil { isSensorStabilityWarning = false }
 
-        travelWarningTitle = switch reason {
+        switch reason {
         case .noPath:
-            "Tidak ada balok di depan"
+            releaseGasPedal()
+            enqueueTravelDialogue(.noPath)
         case .lightBlockReflectsIR:
-            "Balok bukan jalur gelap"
+            releaseGasPedal()
+            enqueueTravelDialogue(.lightBlock)
         case nil:
-            "UFO berhenti"
+            break
         }
-        travelWarningMessage = switch reason {
-        case .noPath:
-            "Tidak ada jalur di depan. UFO tidak dapat bergerak maju. Tambahkan balok jalur untuk melanjutkan."
-        case .lightBlockReflectsIR:
-            "Warna balok di depan tidak cukup gelap dan memantulkan inframerah. UFO berhenti karena balok ini bukan jalur yang dapat diikuti."
-        case nil:
-            nil
+    }
+
+    private func enqueueTravelDialogue(_ dialogue: UFOTravelDialogue) {
+        guard activeTravelDialogue != dialogue,
+              !pendingTravelDialogues.contains(dialogue) else {
+            return
+        }
+
+        if activeTravelDialogue == nil {
+            activeTravelDialogue = dialogue
+        } else {
+            pendingTravelDialogues.append(dialogue)
         }
     }
 

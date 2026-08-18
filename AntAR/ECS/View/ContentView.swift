@@ -137,6 +137,14 @@ struct ContentView: View {
                 BoardHintBubbleView(onDismiss: viewModel.dismissBoardHint)
             }
 
+            if let dialogue = viewModel.activeTravelDialogue {
+                UFOTravelDialogueView(
+                    dialogue: dialogue,
+                    onComplete: { viewModel.completeTravelDialogue(dialogue) }
+                )
+                .id(dialogue)
+            }
+
             if viewModel.isInspectingUFO {
                 GeometryReader { geometry in
                     UFOSensorInspectionView(viewModel: viewModel)
@@ -148,27 +156,7 @@ struct ContentView: View {
         .task {
             isCameraAuthorized = await AVCaptureDevice.requestAccess(for: .video)
         }
-        .alert(
-            viewModel.travelWarningTitle,
-            isPresented: Binding(
-                get: { viewModel.travelWarningMessage != nil },
-                set: { isPresented in
-                    if !isPresented { viewModel.dismissTravelWarning() }
-                }
-            )
-        ) {
-            if viewModel.isSensorStabilityWarning {
-                Button("Atur sensor") {
-                    viewModel.dismissTravelWarning()
-                    viewModel.beginUFOInspection()
-                }
-            }
-            Button(viewModel.isSensorStabilityWarning ? "Lanjutkan" : "Mengerti", role: .cancel) {
-                viewModel.dismissTravelWarning()
-            }
-        } message: {
-            Text(viewModel.travelWarningMessage ?? "")
-        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.activeTravelDialogue)
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
