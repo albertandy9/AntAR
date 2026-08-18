@@ -23,10 +23,13 @@ final class ARExperienceViewModel {
     var leftMotorPower: Float = 0
     var rightMotorPower: Float = 0
     var isGasPedalPressed = false
+    var sensorLearningPhase: SensorLearningPhase = .baseline
     var isInspectingUFO = false
     var isFinishingUFOInspection = false
     var ufoInspectionScreenPosition: CGPoint?
     var ufoStallReason: UFOStallReason?
+    var isSensorStabilityWarning = false
+    var isBlockTooFarWarning = false
     var travelWarningTitle = "UFO berhenti"
     var travelWarningMessage: String?
     private(set) var placementAnchor: Entity?
@@ -46,6 +49,14 @@ final class ARExperienceViewModel {
 
     var canControlUFO: Bool {
         hasPlacedBlocks && isTravelUFOReady && gameState.supportsRouteBuilding
+    }
+
+    var isSensorUpgradeRecommended: Bool {
+        sensorLearningPhase == .upgradeRecommended
+    }
+
+    var canUseGasPedal: Bool {
+        canControlUFO
     }
 
     // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its
@@ -73,6 +84,7 @@ final class ARExperienceViewModel {
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
+    @ObservationIgnored private var hasShownSensorStabilityWarning = false
 
     private var masterScene: Entity?
 
@@ -482,11 +494,16 @@ final class ARExperienceViewModel {
         guard !hasRevealedEnvironment, let masterScene else { return }
         hasRevealedEnvironment = true
 
-        let flatBackground = masterScene.findEntity(named: EnvironmentLayoutConfig.backgroundEntityName)
+        let authoredTerrain = EnvironmentLayoutConfig.terrainEntityNames.lazy.compactMap {
+            masterScene.findEntity(named: $0)
+        }.first
+        let flatBackground = EnvironmentLayoutConfig.fallbackBackgroundEntityNames.lazy.compactMap {
+            masterScene.findEntity(named: $0)
+        }.first
 
-        // Prefer an authored terrain instance and preserve every material from its USDZ. The
-        // simple brown plane remains a fallback for scenes that have not added env_terrain yet.
-        if let terrain = masterScene.findEntity(named: EnvironmentLayoutConfig.terrainEntityName) {
+        // Prefer the authored terrain and preserve every material from its USDZ. The simple
+        // brown plane remains a fallback for scenes that have not added the terrain asset yet.
+        if let terrain = authoredTerrain {
             terrain.isEnabled = true
             flatBackground?.isEnabled = false
         } else if let background = flatBackground {
@@ -554,7 +571,11 @@ final class ARExperienceViewModel {
                 continue
             }
             guard var collectible = block.components[BlockCollectibleComponent.self] else { return }
-            guard collectible.isInRange, !collectible.isCollected else { return }
+            guard !collectible.isCollected else { return }
+            guard collectible.isInRange else {
+                presentBlockTooFarWarning()
+                return
+            }
 
             collectible.isCollected = true
             block.components[BlockCollectibleComponent.self] = collectible
@@ -684,7 +705,7 @@ final class ARExperienceViewModel {
 
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
-        guard canControlUFO,
+        guard canUseGasPedal,
               masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
                 .components[UFOInspectionComponent.self]?.isActive != true,
               var control = gameDirector.components[UFOControlComponent.self] else {
@@ -789,6 +810,11 @@ final class ARExperienceViewModel {
         irLineActivations = Array(repeating: 0, count: count)
         follower.sensorCount = count
         ufo.components[UFOPathFollowerComponent.self] = follower
+        if var learning = ufo.components[SensorLearningComponent.self] {
+            learning.updateSensorCount(count)
+            ufo.components[SensorLearningComponent.self] = learning
+            sensorLearningPhase = learning.phase
+        }
         ufo.components[IRSensorArrayComponent.self] = IRSensorArrayComponent(sensorCount: count)
         IRSensorFactory.rebuildSensors(
             on: ufo,
@@ -812,6 +838,12 @@ final class ARExperienceViewModel {
             return
         }
 
+        if let learning = ufo.components[SensorLearningComponent.self] {
+            if sensorLearningPhase != learning.phase {
+                sensorLearningPhase = learning.phase
+            }
+        }
+
         let nextActivations = readings.lineSignals.map { min(max($0, 0), 1) }
         let decision = IRLineFollowingPolicy.decide(lineSignals: readings.lineSignals)
         let nextGasState = gameDirector.components[UFOControlComponent.self]?.isPedalPressed ?? false
@@ -829,6 +861,7 @@ final class ARExperienceViewModel {
         }
         if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
         updateTravelWarning(for: follower.stallReason)
+        presentSensorStabilityWarningIfNeeded(for: follower)
     }
 
     private func bindTravelEntities(in scene: Entity) {
@@ -850,6 +883,9 @@ final class ARExperienceViewModel {
             )
         )
         ufo.components.set(IRSensorArrayComponent(sensorCount: sensorCount))
+        let learning = SensorLearningComponent(sensorCount: sensorCount)
+        ufo.components.set(learning)
+        sensorLearningPhase = learning.phase
         ufo.components.set(UFOInspectionComponent())
         ufo.components.set(InputTargetComponent())
         Self.prepareBoxCollision(on: ufo)
@@ -881,12 +917,44 @@ final class ARExperienceViewModel {
 
     func dismissTravelWarning() {
         travelWarningMessage = nil
+        isSensorStabilityWarning = false
+        isBlockTooFarWarning = false
+    }
+
+    private func presentBlockTooFarWarning() {
+        releaseGasPedal()
+        isSensorStabilityWarning = false
+        isBlockTooFarWarning = true
+        travelWarningTitle = "Balok terlalu jauh"
+        travelWarningMessage = "Mendekatlah ke balok, lalu ketuk lagi untuk mengambilnya."
+    }
+
+    private func presentSensorStabilityWarningIfNeeded(
+        for follower: UFOPathFollowerComponent
+    ) {
+        guard sensorLearningPhase == .upgradeRecommended,
+              !hasShownSensorStabilityWarning,
+              travelWarningMessage == nil,
+              follower.stallReason == nil,
+              follower.state != .arrived else {
+            return
+        }
+
+        hasShownSensorStabilityWarning = true
+        isSensorStabilityWarning = true
+        releaseGasPedal()
+        travelWarningTitle = "Sensor dapat dibuat lebih stabil"
+        travelWarningMessage = "UFO tetap dapat digunakan dengan konfigurasi sensor saat ini. Tambahkan sensor jika ingin pembacaan jalur dan gerakan yang lebih stabil."
     }
 
     private func updateTravelWarning(for reason: UFOStallReason?) {
         if ufoStallReason != reason { ufoStallReason = reason }
+        // Preserve the proximity explanation until the learner dismisses it. If a UFO stall also
+        // occurred, it will be surfaced on the following telemetry update.
+        guard !isBlockTooFarWarning else { return }
         guard reason != lastObservedUFOStallReason else { return }
         lastObservedUFOStallReason = reason
+        if reason != nil { isSensorStabilityWarning = false }
 
         travelWarningTitle = switch reason {
         case .noPath:

@@ -78,4 +78,6 @@ public struct UFOPathFollowerComponent: Component, Codable {
     public static let derivativeGain: Float = 0.035
     public static let maximumTurnRate: Float = 2.6
     public static let maximumLineLostDuration: Float = 0.75
+    /// A small fixed mismatch models ordinary left/right motor manufacturing differences.
+    public static let motorImbalance: Float = 0.035
 }

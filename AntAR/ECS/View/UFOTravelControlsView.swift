@@ -16,6 +16,26 @@ struct UFOTravelControlsView: View {
             IRIntensityPanel(viewModel: viewModel)
 
             if !viewModel.isInspectingUFO {
+                if viewModel.sensorLearningPhase == .baseline {
+                    Label(
+                        "Uji \(viewModel.sensorCount) sensor — perhatikan gerakan UFO",
+                        systemImage: "waveform.path.ecg"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.cyan)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                } else if viewModel.isSensorUpgradeRecommended {
+                    Label(
+                        "Tambahkan sensor agar penerbangan lebih stabil",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.yellow)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+                }
+
                 HStack(spacing: 12) {
                     Button {
                         viewModel.requestUFOReset()
@@ -29,19 +49,25 @@ struct UFOTravelControlsView: View {
 
                     GasPedal(
                         isPressed: viewModel.isGasPedalPressed,
+                        isEnabled: viewModel.canUseGasPedal,
                         onPress: { viewModel.setGasPedalPressed(true) },
                         onRelease: { viewModel.setGasPedalPressed(false) }
                     )
                 }
 
                 Button(action: onInspectUFO) {
-                    Label("Atur sensor di bawah UFO", systemImage: "rotate.3d")
+                    Label(
+                        viewModel.isSensorUpgradeRecommended
+                            ? "Tambah sensor untuk stabilitas"
+                            : "Atur sensor di bawah UFO",
+                        systemImage: "rotate.3d"
+                    )
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 42)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.cyan.opacity(0.76))
+                .tint(viewModel.isSensorUpgradeRecommended ? .orange : .cyan.opacity(0.76))
             }
         }
     }
@@ -62,6 +88,13 @@ struct UFOSensorInspectionView: View {
             Text("SENSOR IR DI BAWAH UFO")
                 .font(.caption2.monospaced().weight(.bold))
                 .foregroundStyle(.white.opacity(0.72))
+
+            if viewModel.isSensorUpgradeRecommended {
+                Text("TAMBAHKAN SENSOR UNTUK MENINGKATKAN STABILITAS")
+                    .font(.caption2.monospaced().weight(.bold))
+                    .foregroundStyle(.yellow)
+                    .multilineTextAlignment(.center)
+            }
 
             HStack(spacing: 10) {
                 sensorButton(systemImage: "minus") {
@@ -94,7 +127,9 @@ struct UFOSensorInspectionView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.cyan)
-            .disabled(viewModel.isFinishingUFOInspection)
+            .disabled(
+                viewModel.isFinishingUFOInspection
+            )
         }
         .foregroundStyle(.white)
         .padding(12)
@@ -123,6 +158,7 @@ struct UFOSensorInspectionView: View {
 
 private struct GasPedal: View {
     let isPressed: Bool
+    let isEnabled: Bool
     let onPress: () -> Void
     let onRelease: () -> Void
 
@@ -130,9 +166,13 @@ private struct GasPedal: View {
         VStack(spacing: 2) {
             Image(systemName: "arrowtriangle.up.fill")
                 .font(.caption)
-            Text(isPressed ? "PEDAL AKTIF" : "TAHAN PEDAL GAS")
+            Text(isPressed ? "PEDAL AKTIF" : (isEnabled ? "TAHAN PEDAL GAS" : "TAMBAHKAN SENSOR"))
                 .font(.system(.caption, design: .monospaced).weight(.bold))
-            Text(isPressed ? "lepas untuk berhenti" : "tahan untuk jalan")
+            Text(
+                isPressed
+                    ? "lepas untuk berhenti"
+                    : (isEnabled ? "tahan untuk jalan" : "atur sensor terlebih dahulu")
+            )
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.70))
         }
@@ -149,6 +189,8 @@ private struct GasPedal: View {
                 .onChanged { _ in onPress() }
                 .onEnded { _ in onRelease() }
         )
+        .allowsHitTesting(isEnabled)
+        .opacity(isEnabled ? 1 : 0.48)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Pedal gas")
         .accessibilityValue(isPressed ? "Ditekan" : "Dilepas")

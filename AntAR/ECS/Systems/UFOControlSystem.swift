@@ -70,7 +70,7 @@ public struct UFOControlSystem: System {
         }
 
         // A stalled or arrived machine cannot keep consuming throttle after its control leaves
-        // the screen. Reset is deliberately required before a new run from either terminal state.
+        // the screen.
         if follower.state == .stalled || follower.state == .arrived {
             control.throttle = 0
             follower.leftMotorPower = 0

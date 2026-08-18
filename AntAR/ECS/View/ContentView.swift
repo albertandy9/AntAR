@@ -111,7 +111,13 @@ struct ContentView: View {
                 }
             )
         ) {
-            Button("Mengerti", role: .cancel) {
+            if viewModel.isSensorStabilityWarning {
+                Button("Atur sensor") {
+                    viewModel.dismissTravelWarning()
+                    viewModel.beginUFOInspection()
+                }
+            }
+            Button(viewModel.isSensorStabilityWarning ? "Lanjutkan" : "Mengerti", role: .cancel) {
                 viewModel.dismissTravelWarning()
             }
         } message: {
@@ -183,9 +189,9 @@ struct ContentView: View {
         }
 
         if viewModel.gameState.supportsRouteBuilding {
-            // Same 3D entity hit-test as the UFO tap above. handleBlockTapped() itself checks
-            // whether the tap actually landed close enough to collect (BlockProximitySystem's
-            // isInRange), so a tap on a too-far block is just ignored, not an error.
+            // Same 3D entity hit-test as the UFO tap above. handleBlockTapped() checks
+            // BlockProximitySystem's isInRange result and explains when a visible block is too
+            // far away to collect; taps that do not hit a block remain silent.
             let tappedEntity = content.entity(at: location, in: .local)
             if let tappedEntity {
                 if viewModel.handleTravelUFOTapped(tappedEntity) { return }

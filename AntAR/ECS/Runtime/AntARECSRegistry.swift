@@ -37,6 +37,7 @@ enum AntARECSRegistry {
         IRBeamVisualComponent.registerComponent()
         BlockPlacementGuideComponent.registerComponent()
         UFOInspectionComponent.registerComponent()
+        SensorLearningComponent.registerComponent()
 
         GameStateMachineSystem.registerSystem()
         SurfaceDetectionSystem.registerSystem()
