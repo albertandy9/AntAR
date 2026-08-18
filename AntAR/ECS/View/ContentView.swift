@@ -102,6 +102,21 @@ struct ContentView: View {
                 .ignoresSafeArea()
             }
         }
+        .alert(
+            viewModel.travelWarningTitle,
+            isPresented: Binding(
+                get: { viewModel.travelWarningMessage != nil },
+                set: { isPresented in
+                    if !isPresented { viewModel.dismissTravelWarning() }
+                }
+            )
+        ) {
+            Button("Mengerti", role: .cancel) {
+                viewModel.dismissTravelWarning()
+            }
+        } message: {
+            Text(viewModel.travelWarningMessage ?? "")
+        }
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
