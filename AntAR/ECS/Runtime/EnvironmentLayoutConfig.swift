@@ -19,10 +19,21 @@ enum EnvironmentLayoutConfig {
 
     static let nestEntityName = "ant_nest"
 
-    /// Optional RCP instance of Environment/env_terrain.usdz.
-    static let terrainEntityName = "env_terrain"
+    /// Preferred authored terrain instance. The aliases keep existing RCP exports working while
+    /// Reality Composer Pro finishes serializing the scene-hierarchy rename to `background`.
+    static let terrainEntityNames = [
+        "background",
+        "env_terrain_1",
+        "env_terrain",
+    ]
 
-    static let backgroundEntityName = "bakcground"
-    // TUNABLE — bakcground's color. Change this to whatever fits the scene.
+    /// The original flat plane is only a fallback and is hidden whenever authored terrain exists.
+    static let fallbackBackgroundEntityNames = [
+        "background_white",
+        "bakcground_white",
+        "bakcground",
+    ]
+
+    // TUNABLE — fallback plane color. The authored terrain keeps its own USDZ materials.
     static let backgroundColor: UIColor = .systemBrown
 }

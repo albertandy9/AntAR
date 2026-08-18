@@ -28,7 +28,9 @@ public struct UFOPathFollowingSystem: System {
             && .has(UFOControlComponent.self)
     )
     private static let ufoQuery = EntityQuery(
-        where: .has(UFOPathFollowerComponent.self) && .has(IRSensorArrayComponent.self)
+        where: .has(UFOPathFollowerComponent.self)
+            && .has(IRSensorArrayComponent.self)
+            && .has(SensorLearningComponent.self)
     )
     private static let tileQuery = EntityQuery(
         where: .has(PathTileComponent.self) && .has(IRReflectanceComponent.self)
@@ -67,8 +69,15 @@ public struct UFOPathFollowingSystem: System {
 
         for ufo in context.entities(matching: Self.ufoQuery, updatingSystemWhen: .rendering) {
             guard var follower = ufo.components[UFOPathFollowerComponent.self],
-                  let sensorArray = ufo.components[IRSensorArrayComponent.self] else {
+                  let sensorArray = ufo.components[IRSensorArrayComponent.self],
+                  var learning = ufo.components[SensorLearningComponent.self] else {
                 continue
+            }
+
+            let learningBeforeSensorCheck = learning
+            learning.updateSensorCount(follower.sensorCount)
+            if learning != learningBeforeSensorCheck {
+                ufo.components[SensorLearningComponent.self] = learning
             }
 
             // Inspection owns the chassis orientation and intentionally pauses both motors.
@@ -143,6 +152,16 @@ public struct UFOPathFollowingSystem: System {
                     continue
                 }
 
+                if learning.phase == .baseline {
+                    learning.baselineDriveDuration += Float(context.deltaTime)
+                    if learning.baselineDriveDuration
+                        >= SensorLearningComponent.baselineDemonstrationDuration {
+                        learning.recommendUpgrade(sensorCount: follower.sensorCount)
+                        ufo.components[SensorLearningComponent.self] = learning
+                    }
+                    ufo.components[SensorLearningComponent.self] = learning
+                }
+
                 // A tile is considered valid by its authored IR component. At the start of a
                 // target transition beams can briefly sample open floor; do not turn that one
                 // frame into a false stop.
@@ -203,19 +222,24 @@ public struct UFOPathFollowingSystem: System {
             return
         }
 
+        let isInitialLaunch = follower.currentTargetOrder == 1
+            && follower.elapsedTravelTime <= 0.0001
+
         follower.state = .following
         follower.stallReason = nil
         follower.moveRequested = false
-        follower.elapsedTravelTime = 0
         follower.steeringError = 0
         follower.previousSteeringError = 0
         follower.lineLostDuration = 0
         follower.leftMotorPower = 0
         follower.rightMotorPower = 0
 
-        // Keep the authored handoff position, but align the chassis with the beginning of the
-        // route exactly as a physical robot is placed facing its line before its motors start.
-        face(ufo, toward: nextTile.0.position(relativeTo: nil))
+        // Align only when the UFO first enters the route. Re-aiming at a newly placed tile after
+        // a no-path stall can point backward when the chassis has already crossed the previous
+        // tile's centre. Incremental continuation must preserve the heading at which it stopped.
+        if isInitialLaunch {
+            face(ufo, toward: nextTile.0.position(relativeTo: nil))
+        }
     }
 
     /// Proportional-derivative steering expressed as differential left/right motor power.
@@ -263,12 +287,27 @@ public struct UFOPathFollowingSystem: System {
         let availablePower = min(max(throttle, 0), 1)
         let basePower: Float = (decision.hasLine ? 0.70 + decision.confidence * 0.20 : 0.32)
             * availablePower
-        follower.leftMotorPower = clamp(basePower + steering * 0.48, 0, 1)
-        follower.rightMotorPower = clamp(basePower - steering * 0.48, 0, 1)
+        let imbalance = UFOPathFollowerComponent.motorImbalance
+        follower.leftMotorPower = clamp(
+            basePower * (1 + imbalance) + steering * 0.48,
+            0,
+            1
+        )
+        follower.rightMotorPower = clamp(
+            basePower * (1 - imbalance) - steering * 0.48,
+            0,
+            1
+        )
 
-        // For a differential drive, opposite wheel speeds create yaw. Negative sensor error
-        // means the line is left, so the right motor runs faster and the robot turns left.
-        let yaw = currentYaw + steering * UFOPathFollowerComponent.maximumTurnRate * deltaTime
+        // Derive yaw from the actual wheel powers so the fixed motor mismatch creates a genuine
+        // drift that the sensor array has to measure and correct. More spatial samples detect the
+        // edge sooner and turn this coarse two-sensor oscillation into a smooth correction.
+        let motorTurn = clamp(
+            (follower.leftMotorPower - follower.rightMotorPower) / 0.96,
+            -1,
+            1
+        )
+        let yaw = currentYaw + motorTurn * UFOPathFollowerComponent.maximumTurnRate * deltaTime
         let forward = SIMD3<Float>(sin(yaw), 0, cos(yaw))
         let averagePower = (follower.leftMotorPower + follower.rightMotorPower) / 2
 
