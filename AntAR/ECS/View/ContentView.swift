@@ -70,6 +70,26 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
 
+            if viewModel.gameState.supportsRouteBuilding {
+                VStack {
+                    HStack {
+                        BlockInventoryView(
+                            collectedBlocks: viewModel.collectedBlocks,
+                            isReturnTargeted: isInventoryReturnTargeted
+                        )
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            inventoryFrame = frame
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 150)
+                .padding(.leading, 16)
+            }
+
             VStack {
                 GameOverlayView(
                     state: viewModel.gameState,
@@ -90,20 +110,12 @@ struct ContentView: View {
                         .ignoresSafeArea(edges: .bottom)
                 }
 
-                if !viewModel.collectedBlocks.isEmpty || viewModel.hasPlacedBlocks {
-                    BlockInventoryView(
-                        collectedBlocks: viewModel.collectedBlocks,
-                        isReturnTargeted: isInventoryReturnTargeted
-                    )
-                    .onGeometryChange(for: CGRect.self) { geometry in
-                        geometry.frame(in: .global)
-                    } action: { frame in
-                        inventoryFrame = frame
-                    }
-                    .padding(.bottom, 24)
+                if viewModel.isBlockTooFarWarning {
+                    BlockOutOfRangeBanner()
+                        .transition(.opacity)
                 }
 
-                if viewModel.canControlUFO {
+                if viewModel.gameState.supportsRouteBuilding {
                     UFOTravelControlsView(
                         viewModel: viewModel,
                         onInspectUFO: viewModel.beginUFOInspection
@@ -112,15 +124,18 @@ struct ContentView: View {
                     .padding(.bottom, 24)
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isBlockTooFarWarning)
 
             StoryBubbleSequenceView(
-                gameState: viewModel.gameState,
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,
                 hasTappedUFO: viewModel.hasTappedUFO,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
-                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
-                onBoardHintDismissed: {}
+                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
             )
+
+            if viewModel.isShowingBoardHint {
+                BoardHintBubbleView(onDismiss: viewModel.dismissBoardHint)
+            }
 
             if viewModel.isInspectingUFO {
                 GeometryReader { geometry in

@@ -9,7 +9,6 @@ import SwiftUI
 import UIKit
 
 struct StoryBubbleSequenceView: View {
-    let gameState: GameState
     let lostAntGreetPhase: LostAntGreetPhase?
     let hasTappedUFO: Bool
     // Called exactly once, the moment the player dismisses the second UFO story line — the ant
@@ -21,10 +20,6 @@ struct StoryBubbleSequenceView: View {
     // player can't start searching for the UFO until this fires. See
     // ARExperienceViewModel.confirmAntDialogueDismissed's header comment.
     let onAntDialogueDismissed: () -> Void
-    // Called exactly once, the moment the player dismisses the board-finding hint — ContentView
-    // uses this to keep the inventory panel and travel-controls HUD fully hidden until then.
-    let onBoardHintDismissed: () -> Void
-
     private struct Beat {
         let text: String
         let position: Position
@@ -39,19 +34,10 @@ struct StoryBubbleSequenceView: View {
     private enum Kind {
         case antDialogue
         case ufoStory
-        case boardHint
     }
 
     private static let antDialogueDelay: TimeInterval = 1.5
     private static let ufoStoryDelay: TimeInterval = 1.5
-    // The state machine reaches .blocksScattered the instant the ant finishes boarding, but the
-    // scene isn't actually ready yet at that exact moment — beginUFOAscendIfNeeded() only starts
-    // there, and revealEnvironment() (ground, blocks, grass) doesn't run until UFOAscendComponent
-    // finishes rising (UFOAscendComponent.duration, read-only reference to the friend's existing
-    // constant — not a new tunable). Gating the board hint on .blocksScattered alone showed it
-    // during that ~2s window, telling the player to go find a board before the board-finding world
-    // had actually finished revealing itself. A small buffer on top covers the last bit of settle.
-    private static let boardHintDelay: TimeInterval = TimeInterval(UFOAscendComponent.duration) + 0.5
 
     private static let beats: [Beat] = [
         Beat(
@@ -73,24 +59,31 @@ struct StoryBubbleSequenceView: View {
             text: "UFO ini memancarkan cahaya inframerah tidak terlihat yang bisa mendeteksi benda.",
             position: .bottom,
             kind: .ufoStory
-        ),
-        Beat(
-            text: "UFO nya belum bisa jalan nih karena memerlukan papan. Yuk coba cari papan dulu.",
-            position: .bottom,
-            kind: .boardHint
         )
     ]
+    // The board-hint beat ("UFO nya belum bisa jalan nih...") used to live here as a fixed-delay
+    // beat after .blocksScattered, regardless of what the player actually did. It's now
+    // BoardHintBubbleView instead, triggered specifically by a failed gas-pedal press
+    // (ARExperienceViewModel.isShowingBoardHint) — the text only made sense as feedback for that
+    // action, not as an automatic timer.
 
     @State private var currentIndex = 0
     // Set once, the instant each trigger condition first becomes true — the anchor a TimelineView
     // tick measures elapsed time against, not a cancellable timer.
     @State private var releasingStartedAt: Date?
     @State private var ufoTappedAt: Date?
-    @State private var blocksScatteredStartedAt: Date?
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.1)) { timeline in
-            content(now: timeline.date)
+        // Only ticks while beats remain to be shown — previously ran unconditionally for the
+        // entire rest of the session (10x/sec, forever, even long after all 4 beats were
+        // dismissed), which is a real, continuous source of main-thread view-diff pressure on
+        // top of everything else on screen. This is one concrete contributor to the reported lag.
+        Group {
+            if currentIndex < Self.beats.count {
+                TimelineView(.periodic(from: .now, by: 0.1)) { timeline in
+                    content(now: timeline.date)
+                }
+            }
         }
         .onChange(of: lostAntGreetPhase, initial: true) { _, newPhase in
             if releasingStartedAt == nil, Self.hasReached(.releasing, newPhase) {
@@ -100,11 +93,6 @@ struct StoryBubbleSequenceView: View {
         .onChange(of: hasTappedUFO, initial: true) { _, tapped in
             if tapped, ufoTappedAt == nil {
                 ufoTappedAt = Date()
-            }
-        }
-        .onChange(of: gameState, initial: true) { _, newState in
-            if blocksScatteredStartedAt == nil, Self.hasReached(.blocksScattered, newState) {
-                blocksScatteredStartedAt = Date()
             }
         }
     }
@@ -138,9 +126,6 @@ struct StoryBubbleSequenceView: View {
         case .ufoStory:
             guard let ufoTappedAt else { return false }
             return now.timeIntervalSince(ufoTappedAt) >= Self.ufoStoryDelay
-        case .boardHint:
-            guard let blocksScatteredStartedAt else { return false }
-            return now.timeIntervalSince(blocksScatteredStartedAt) >= Self.boardHintDelay
         }
     }
 
@@ -149,8 +134,8 @@ struct StoryBubbleSequenceView: View {
             Spacer(minLength: 0)
 
             // "Group 44" (the fainted ant with its own white oval shadow baked in) only for the
-            // ant's own dialogue — the UFO story and board hint beats aren't the ant talking, so
-            // they get no avatar at all.
+            // ant's own dialogue — the UFO story beats aren't the ant talking, so they get no
+            // avatar at all.
             SpeechBubbleView(
                 text: beat.text,
                 avatarImageName: beat.kind == .antDialogue ? "Group 44" : nil
@@ -183,18 +168,6 @@ struct StoryBubbleSequenceView: View {
         if leavingAntDialogue {
             onAntDialogueDismissed()
         }
-
-        if dismissedBeat.kind == .boardHint {
-            onBoardHintDismissed()
-        }
-    }
-
-    // GameState is already CaseIterable, so its declaration order can be read directly off
-    // allCases without touching GameState.swift itself.
-    private static func hasReached(_ target: GameState, _ current: GameState) -> Bool {
-        guard let targetIndex = GameState.allCases.firstIndex(of: target),
-              let currentIndex = GameState.allCases.firstIndex(of: current) else { return false }
-        return currentIndex >= targetIndex
     }
 
     // LostAntGreetPhase isn't CaseIterable, so its declaration order is copied here (read-only,
@@ -212,19 +185,16 @@ struct StoryBubbleSequenceView: View {
 }
 
 #Preview {
-    // All three gates already satisfied at appear (.blocksScattered/.releasing/hasTappedUFO:
-    // true), so every beat's own delay starts counting immediately instead of waiting on a real
-    // game-state transition — tap through to walk all 5 beats: antDialogue (Group 44 avatar) ->
-    // ufoStory (no avatar) -> boardHint (no avatar, ~2.5s wait for UFOAscendComponent.duration).
+    // Both gates already satisfied at appear (.releasing/hasTappedUFO: true), so every beat's own
+    // delay starts counting immediately instead of waiting on a real transition — tap through to
+    // walk all 4 beats: antDialogue (Group 44 avatar) -> ufoStory (no avatar).
     ZStack {
         Color.gray.ignoresSafeArea()
         StoryBubbleSequenceView(
-            gameState: .blocksScattered,
             lostAntGreetPhase: .releasing,
             hasTappedUFO: true,
             onUFOStoryDismissed: {},
-            onAntDialogueDismissed: {},
-            onBoardHintDismissed: {}
+            onAntDialogueDismissed: {}
         )
     }
 }
