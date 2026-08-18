@@ -30,60 +30,64 @@ struct SpeechBubbleView: View {
     private static let avatarWidth: CGFloat = 240
 
     var body: some View {
-        Text(text)
-            .font(.custom("Fredoka-Regular", size: 20))
-            .foregroundStyle(Self.textColor)
-            .multilineTextAlignment(.center)
-            // Padding internal dikembalikan agar teks tetap presisi di tengah kotak — top padding
-            // grows a bit when there's an avatar overlapping down from above, so its bottom edge
-            // doesn't crowd the first line of text. Bottom was only 10 (top was 30-50), leaving
-            // noticeably less breathing room below the text than above it — bumped to 24 so the
-            // text sits centered in the bubble instead of crowding its bottom edge.
-            .padding(.top, avatarImageName == nil ? 34 : 50)
-            .padding(.bottom, 38)
-            .padding(.horizontal, 20)
-            .background(
-                // Only the avatar case pushes the tail out to 225 — that's not "wherever looks
-                // nice," it's specifically clearing the avatar's own right edge (offset x -30 +
-                // avatarWidth 240 = 210, +15 margin), which is what was actually hiding the tail:
-                // the overlay draws on top of this background, so a tail underneath the avatar's
-                // opaque artwork was never clipped or missing, just covered by it. The plain (no
-                // avatar) case keeps the original 80 — pushing every bubble to 225 would overflow a
-                // short, one-line, avatar-less bubble that never needs to clear anything.
-                SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
-                    .fill(Self.fillColor)
-                    .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
-            )
-            .overlay(alignment: .topLeading) {
-                if let avatarImageName {
-                    Image(avatarImageName)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: Self.avatarWidth)
-                        // Mostly above the bubble (negative y pushes it up), a little over the
-                        // bubble's own leading edge (negative x) so it reads as "perched on top of
-                        // the tail corner" rather than floating separately above it. Fixed points,
-                        // not a fraction of avatarWidth — height is no longer a known square, so
-                        // there's nothing meaningful to take a fraction of.
-                        //
-                        // At avatarWidth=240, rendered height ≈ 240/(195/96) ≈ 118. The bubble's
-                        // visible teal surface starts 18pt down from this overlay's origin
-                        // (SpeechBubbleShape's tailHeight — the tiny pointer triangle occupies the
-                        // first 18pt), so offset -60 puts the avatar's bottom edge at frame-relative
-                        // y ≈ 58: 40pt into the visible bubble, just above the text's own top
-                        // padding (50) so the overlap still doesn't cover any text.
-                        .offset(x: -30, y: -60)
-                }
+        // ZStack, not .overlay() — bubble goes in FIRST (bottom layer) and the avatar SECOND (top
+        // layer), so the ant now draws OVER the bubble where they overlap, in front instead of
+        // tucked behind it.
+        ZStack(alignment: .topLeading) {
+            Text(text)
+                .font(.custom("Fredoka-Regular", size: 20))
+                .foregroundStyle(Self.textColor)
+                .multilineTextAlignment(.center)
+                // Padding internal dikembalikan agar teks tetap presisi di tengah kotak — top
+                // padding grows a bit when there's an avatar overlapping down from above, so its
+                // bottom edge doesn't crowd the first line of text. Bottom was only 10 (top was
+                // 30-50), leaving noticeably less breathing room below the text than above it —
+                // bumped to 24 so the text sits centered in the bubble instead of crowding its
+                // bottom edge.
+                .padding(.top, avatarImageName == nil ? 34 : 50)
+                .padding(.bottom, 24)
+                .padding(.horizontal, 20)
+                .background(
+                    // Only the avatar case pushes the tail out to 225 — that's not "wherever looks
+                    // nice," it's specifically clearing the avatar's own right edge (offset x -30 +
+                    // avatarWidth 240 = 210, +15 margin) so the tail isn't hidden behind the ant.
+                    // The plain (no avatar) case keeps the original 80 — pushing every bubble to
+                    // 225 would overflow a short, one-line, avatar-less bubble that never needs to
+                    // clear anything.
+                    SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
+                        .fill(Self.fillColor)
+                        .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
+                )
+
+            if let avatarImageName {
+                Image(avatarImageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: Self.avatarWidth)
+                    // Mostly above the bubble (negative y pushes it up), a little over the
+                    // bubble's own leading edge (negative x) so it reads as "perched on top of
+                    // the tail corner" rather than floating separately above it. Fixed points,
+                    // not a fraction of avatarWidth — height is no longer a known square, so
+                    // there's nothing meaningful to take a fraction of.
+                    //
+                    // At avatarWidth=240, rendered height ≈ 240/(195/96) ≈ 118. The bubble's
+                    // visible teal surface starts 18pt down from this ZStack's origin
+                    // (SpeechBubbleShape's tailHeight — the tiny pointer triangle occupies the
+                    // first 18pt), so offset -60 puts the avatar's bottom edge at frame-relative
+                    // y ≈ 58: 40pt into the visible bubble, just above the text's own top padding
+                    // (50) so the overlap still doesn't cover any text.
+                    .offset(x: -30, y: -60)
             }
-            .overlay(alignment: .bottomTrailing) {
-                Text("...")
-                    .font(.custom("Fredoka-Regular", size: 20))
-                    .foregroundStyle(Self.textColor)
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 8)
-                    .accessibilityHidden(true)
-            }
-            .animation(.default, value: text)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Text("...")
+                .font(.custom("Fredoka-Regular", size: 20))
+                .foregroundStyle(Self.textColor)
+                .padding(.trailing, 16)
+                .padding(.bottom, 8)
+                .accessibilityHidden(true)
+        }
+        .animation(.default, value: text)
     }
 }
 

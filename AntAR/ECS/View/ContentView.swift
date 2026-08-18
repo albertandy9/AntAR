@@ -70,6 +70,26 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
 
+            if viewModel.gameState.supportsRouteBuilding {
+                VStack {
+                    HStack {
+                        BlockInventoryView(
+                            collectedBlocks: viewModel.collectedBlocks,
+                            isReturnTargeted: isInventoryReturnTargeted
+                        )
+                        .onGeometryChange(for: CGRect.self) { geometry in
+                            geometry.frame(in: .global)
+                        } action: { frame in
+                            inventoryFrame = frame
+                        }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.top, 150)
+                .padding(.leading, 16)
+            }
+
             VStack {
                 GameOverlayView(
                     state: viewModel.gameState,
@@ -90,17 +110,9 @@ struct ContentView: View {
                         .ignoresSafeArea(edges: .bottom)
                 }
 
-                if !viewModel.collectedBlocks.isEmpty || viewModel.hasPlacedBlocks {
-                    BlockInventoryView(
-                        collectedBlocks: viewModel.collectedBlocks,
-                        isReturnTargeted: isInventoryReturnTargeted
-                    )
-                    .onGeometryChange(for: CGRect.self) { geometry in
-                        geometry.frame(in: .global)
-                    } action: { frame in
-                        inventoryFrame = frame
-                    }
-                    .padding(.bottom, 24)
+                if viewModel.isBlockTooFarWarning {
+                    BlockOutOfRangeBanner()
+                        .transition(.opacity)
                 }
 
                 if viewModel.gameState.supportsRouteBuilding {
@@ -112,6 +124,7 @@ struct ContentView: View {
                     .padding(.bottom, 24)
                 }
             }
+            .animation(.easeInOut(duration: 0.2), value: viewModel.isBlockTooFarWarning)
 
             StoryBubbleSequenceView(
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,

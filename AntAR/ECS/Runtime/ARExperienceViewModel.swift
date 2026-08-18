@@ -1010,15 +1010,16 @@ final class ARExperienceViewModel {
     func dismissTravelWarning() {
         travelWarningMessage = nil
         isSensorStabilityWarning = false
-        isBlockTooFarWarning = false
     }
 
     private func presentBlockTooFarWarning() {
         releaseGasPedal()
-        isSensorStabilityWarning = false
         isBlockTooFarWarning = true
-        travelWarningTitle = "Balok terlalu jauh"
-        travelWarningMessage = "Mendekatlah ke balok, lalu ketuk lagi untuk mengambilnya."
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.2))
+            guard let self, self.isBlockTooFarWarning else { return }
+            self.isBlockTooFarWarning = false
+        }
     }
 
     private func presentSensorStabilityWarningIfNeeded(
