@@ -30,7 +30,7 @@ struct GameOverlayView: View {
         case .antEntersUFO:
             AntEntersUFOView()
         case .blocksScattered:
-            BlocksScatteredView()
+            EmptyView()
         case .ufoTravelling:
             UFOTravellingView()
         case .completed:

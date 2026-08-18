@@ -49,7 +49,7 @@ struct UFOTravelControlsView: View {
 
                     GasPedal(
                         isPressed: viewModel.isGasPedalPressed,
-                        isEnabled: viewModel.canUseGasPedal,
+                        isEnabled: true,
                         onPress: { viewModel.setGasPedalPressed(true) },
                         onRelease: { viewModel.setGasPedalPressed(false) }
                     )

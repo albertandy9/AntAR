@@ -34,6 +34,7 @@ final class ARExperienceViewModel {
     var isBlockTooFarWarning = false
     var travelWarningTitle = "UFO berhenti"
     var travelWarningMessage: String?
+    var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
     private(set) var ufoDirection: CGVector?
@@ -790,6 +791,11 @@ final class ARExperienceViewModel {
 
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
+        if pressed, !hasPlacedBlocks {
+            isShowingBoardHint = true
+            return
+        }
+
         guard canUseGasPedal,
               masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
                 .components[UFOInspectionComponent.self]?.isActive != true,
@@ -803,6 +809,9 @@ final class ARExperienceViewModel {
         isGasPedalPressed = pressed
     }
 
+    func dismissBoardHint() {
+        isShowingBoardHint = false
+    }
 
     func requestUFOReset() {
         guard isTravelUFOReady,

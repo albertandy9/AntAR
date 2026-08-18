@@ -103,7 +103,7 @@ struct ContentView: View {
                     .padding(.bottom, 24)
                 }
 
-                if viewModel.canControlUFO {
+                if viewModel.gameState.supportsRouteBuilding {
                     UFOTravelControlsView(
                         viewModel: viewModel,
                         onInspectUFO: viewModel.beginUFOInspection
@@ -114,13 +114,15 @@ struct ContentView: View {
             }
 
             StoryBubbleSequenceView(
-                gameState: viewModel.gameState,
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,
                 hasTappedUFO: viewModel.hasTappedUFO,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
-                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
-                onBoardHintDismissed: {}
+                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
             )
+
+            if viewModel.isShowingBoardHint {
+                BoardHintBubbleView(onDismiss: viewModel.dismissBoardHint)
+            }
 
             if viewModel.isInspectingUFO {
                 GeometryReader { geometry in
