@@ -426,7 +426,6 @@ def Xform "Root"
     }
 
     def Cube "finish_ant1" (
-        active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
@@ -505,7 +504,6 @@ def Xform "Root"
     }
 
     def Cube "finish_ant4" (
-        active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
@@ -529,7 +527,6 @@ def Xform "Root"
     }
 
     def Cube "finish_ant2" (
-        active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
@@ -555,7 +552,6 @@ def Xform "Root"
     }
 
     def Cube "finish_ant3" (
-        active = false
         prepend apiSchemas = ["MaterialBindingAPI"]
     )
     {
