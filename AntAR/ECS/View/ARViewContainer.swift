@@ -92,7 +92,9 @@ struct ARViewContainer: UIViewRepresentable {
             viewModel?.refreshSurfaceReadiness()
             viewModel?.refreshUndersizedTableDetected()
             viewModel?.refreshIRTelemetry()
-            viewModel?.refreshUFODirectionIndicator()
+            if let arView = coordinator.arView {
+                viewModel?.refreshUFODirectionIndicator(using: arView)
+            }
             if viewModel?.isInspectingUFO == true, let arView = coordinator.arView {
                 viewModel?.refreshUFOInspectionProjection(using: arView)
             }

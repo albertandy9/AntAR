@@ -37,6 +37,7 @@ final class ARExperienceViewModel {
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
     private(set) var ufoDirection: CGVector?
+    private(set) var ufoTapScreenPosition: CGPoint?
     // Additive, read-only signal for StoryBubbleSequenceView: the UFO story beats should only
     // show once the player has actually found and tapped the UFO, not the instant it spawns.
     // Doesn't change any existing control flow — set once, alongside where UFODescendComponent
@@ -356,12 +357,13 @@ final class ARExperienceViewModel {
         ufo.components.set(InputTargetComponent())
     }
 
-    func refreshUFODirectionIndicator() {
+    func refreshUFODirectionIndicator(using arView: ARView) {
         guard gameState == .ufoAppears,
               let masterScene,
               let ufo = masterScene.findEntity(named: "ufo_angkat_semut"),
               ufo.components[UFODescendComponent.self] == nil else {
             ufoDirection = nil
+            ufoTapScreenPosition = nil
             return
         }
 
@@ -369,6 +371,7 @@ final class ARExperienceViewModel {
         let toUFO = ufo.position(relativeTo: nil) - cameraPosition
         guard simd_length(toUFO) > 0.0001 else {
             ufoDirection = nil
+            ufoTapScreenPosition = nil
             return
         }
         let direction = normalize(toUFO)
@@ -378,14 +381,23 @@ final class ARExperienceViewModel {
         let onScreenCosThreshold: Float = cos(28 * .pi / 180)
         guard dot(direction, cameraForward) <= onScreenCosThreshold else {
             ufoDirection = nil
+            if ufo.components[UFOComponent.self]?.appearProgress == 1,
+               let position = arView.project(ufo.position(relativeTo: nil)),
+               arView.bounds.insetBy(dx: -24, dy: -24).contains(position) {
+                ufoTapScreenPosition = position
+            } else {
+                ufoTapScreenPosition = nil
+            }
             return
         }
+
+        ufoTapScreenPosition = nil
 
         let cameraRight = cameraAnchor.convert(direction: SIMD3<Float>(1, 0, 0), to: nil)
         let cameraUp = cameraAnchor.convert(direction: SIMD3<Float>(0, 1, 0), to: nil)
         // SwiftUI screen space is y-down; camera "up" is y-up, hence the negation.
         var dx = Double(dot(direction, cameraRight))
-        var dy = Double(-dot(direction, cameraUp))
+        let dy = Double(-dot(direction, cameraUp))
         if abs(dx) < 0.0001, abs(dy) < 0.0001 {
 
             dx = 1

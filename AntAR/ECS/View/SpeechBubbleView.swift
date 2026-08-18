@@ -40,7 +40,7 @@ struct SpeechBubbleView: View {
             // noticeably less breathing room below the text than above it — bumped to 24 so the
             // text sits centered in the bubble instead of crowding its bottom edge.
             .padding(.top, avatarImageName == nil ? 34 : 50)
-            .padding(.bottom, 24)
+            .padding(.bottom, 38)
             .padding(.horizontal, 20)
             .background(
                 // Only the avatar case pushes the tail out to 225 — that's not "wherever looks
@@ -74,6 +74,14 @@ struct SpeechBubbleView: View {
                         // padding (50) so the overlap still doesn't cover any text.
                         .offset(x: -30, y: -60)
                 }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Text("...")
+                    .font(.custom("Fredoka-Regular", size: 20))
+                    .foregroundStyle(Self.textColor)
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                    .accessibilityHidden(true)
             }
             .animation(.default, value: text)
     }

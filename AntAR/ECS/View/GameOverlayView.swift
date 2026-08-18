@@ -12,8 +12,6 @@ struct GameOverlayView: View {
     let lostAntGreetPhase: LostAntGreetPhase?
     let isCoachingOverlayActive: Bool
     let isSurfaceTooSmall: Bool
-    let ufoDirection: CGVector?
-    let hasTappedUFO: Bool
 
     var body: some View {
         switch state {
@@ -28,7 +26,7 @@ struct GameOverlayView: View {
         case .lostAntDialogue:
             LostAntDialogueView(phase: lostAntGreetPhase)
         case .ufoAppears:
-            UFOAppearsView(ufoDirection: ufoDirection, hasTappedUFO: hasTappedUFO)
+            EmptyView()
         case .antEntersUFO:
             AntEntersUFOView()
         case .blocksScattered:

@@ -83,15 +83,6 @@
       },
       [
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "ufo_jalan"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root"
       ],
       {
@@ -130,8 +121,11 @@
       [
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
-        "ufo_jalan",
-        "friendly_ufo"
+        "ant_noanthena",
+        "Body_Root",
+        "Head_Pivot",
+        "Antenna_L",
+        "Elbow"
       ],
       {
         "isExpanded" : true,

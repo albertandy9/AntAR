@@ -61,15 +61,22 @@ struct ContentView: View {
                     .ignoresSafeArea()
             }
 
+            if let ufoPosition = viewModel.ufoTapScreenPosition {
+                GeometryReader { _ in
+                    UFOAppearsView()
+                        .position(ufoPosition)
+                }
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            }
+
             VStack {
                 GameOverlayView(
                     state: viewModel.gameState,
                     isTableReadyToPlace: viewModel.isTableReadyToPlace,
                     lostAntGreetPhase: viewModel.lostAntGreetPhase,
                     isCoachingOverlayActive: viewModel.isCoachingOverlayActive,
-                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable,
-                    ufoDirection: viewModel.ufoDirection,
-                    hasTappedUFO: viewModel.hasTappedUFO
+                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable
                 )
                 .padding(.top, 24)
 

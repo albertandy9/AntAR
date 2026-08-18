@@ -38,15 +38,27 @@ def Xform "Root"
         {
             over "Head_Pivot"
             {
-                over "Antenna_L" (
-                    active = false
-                )
+                over "Antenna_L"
                 {
+                    over "Elbow" (
+                        active = false
+                    )
+                    {
+                        over "Tip"
+                        {
+                        }
+                    }
+
+                    over "Scape"
+                    {
+                        quatf xformOp:orient = (0.9061447, 0.30391628, 0.2789024, -0.09354244)
+                        float3 xformOp:scale = (1, 1, 1)
+                        double3 xformOp:translate = (0, 0, 0)
+                        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+                    }
                 }
 
-                over "Antenna_R" (
-                    active = false
-                )
+                over "Antenna_R"
                 {
                 }
             }
@@ -129,7 +141,7 @@ def Xform "Root"
         double size = 0.2
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-0.713119, 1.0133687, 1.0526881)
+        float3 xformOp:translate = (-0.52378696, 1.0133687, 1.0526881)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -157,7 +169,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 1
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-1.1606916, 1.269365, 0.30685347)
+        float3 xformOp:translate = (-1.6352627, 1.269365, 0.30685347)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -241,7 +253,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (1.2240217, 1.4340671, 1.5215797)
+        float3 xformOp:translate = (1.4736729, 1.4340671, 1.5215797)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -269,7 +281,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 4
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (1.4092432, 0.83339036, 0.82811713)
+        float3 xformOp:translate = (1.0325748, 0.83339036, 0.82811713)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -297,7 +309,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 5
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (1.1914307, 1.2179717, 0.71546006)
+        float3 xformOp:translate = (0.73835814, 1.2179717, 0.71546006)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -758,7 +770,7 @@ def Xform "Root"
     {
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.29174632, 0, 0.62574047)
+        float3 xformOp:translate = (-0.29174632, 0.0140274195, 0.6257301)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }
