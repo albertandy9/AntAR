@@ -68,15 +68,19 @@ struct BlockInventoryView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 14)
+        // Fill AND stroke both live in .background now, not a trailing .overlay — an .overlay
+        // here would draw on top of EVERY child, including each slot's own count badge, which is
+        // exactly what was slicing the badge circle where it crossed the capsule's border line.
+        // .background always draws behind the content, so the border no longer covers anything.
         .background(
-            isReturnTargeted ? Color.yellow.opacity(0.30) : Self.containerFill,
-            in: Capsule()
-        )
-        .overlay(
-            Capsule().stroke(
-                isReturnTargeted ? Color.yellow : Self.containerBorder,
-                style: StrokeStyle(lineWidth: isReturnTargeted ? 3 : 2, dash: isReturnTargeted ? [8, 5] : [])
-            )
+            Capsule()
+                .fill(isReturnTargeted ? Color.yellow.opacity(0.30) : Self.containerFill)
+                .overlay(
+                    Capsule().stroke(
+                        isReturnTargeted ? Color.yellow : Self.containerBorder,
+                        style: StrokeStyle(lineWidth: isReturnTargeted ? 3 : 2, dash: isReturnTargeted ? [8, 5] : [])
+                    )
+                )
         )
         .scaleEffect(isReturnTargeted ? 1.06 : 1)
         .animation(.easeOut(duration: 0.14), value: isReturnTargeted)
@@ -102,15 +106,17 @@ struct BlockInventoryView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Self.containerBorder, lineWidth: slot.count == 0 ? 1.5 : 2)
             )
-            .overlay(alignment: .bottomTrailing) {
+            .overlay(alignment: .topTrailing) {
                 if slot.count > 1 {
-                    Text("×\(slot.count)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Self.containerBorder, in: Capsule())
-                        .offset(x: 6, y: 6)
+                    // Plain number, not "×N" — a small white circle with a dark outline and just
+                    // the digit, matching the reference instead of a "×" capsule.
+                    Text("\(slot.count)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.black)
+                        .frame(width: 22, height: 22)
+                        .background(Circle().fill(.white))
+                        .overlay(Circle().stroke(Self.containerBorder, lineWidth: 1.5))
+                        .offset(x: 8, y: -8)
                 }
             }
             .shadow(radius: slot.count == 0 ? 0 : 2)
