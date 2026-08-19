@@ -135,18 +135,19 @@ struct UFOTravelDialogueView: View {
                 Image(dialogue.avatarImageName)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 125)
-                    .offset(x: -15)
+                    .frame(width: 165)
+                    .offset(x: -9)
+                    .ignoresSafeArea(edges: .leading)
 
                 Button(action: advance) {
                     Text(currentMessage)
-                        .font(.custom("Fredoka-Regular", size: 16))
+                        .font(.custom("Fredoka-Regular", size: 15))
                         .foregroundStyle(Self.textColor)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: 190, alignment: .leading) // <--- TAMBAH alignment: .leading agar teks rata kiri
                         .padding(.top, 16)
-                        .padding(.horizontal, 22)
-                        .padding(.bottom, 28)
+                        .padding(.leading, 40)
+                        .padding(.trailing, 10)                        .padding(.bottom, 28)
                         .background(
                             LeadingTailBubbleShape()
                                 .fill(Self.bubbleFill)
@@ -166,10 +167,14 @@ struct UFOTravelDialogueView: View {
                         ? "Ketuk untuk melanjutkan dialog"
                         : "Ketuk untuk menutup dialog"
                 )
-                .offset(x: 8, y: -8)
+                .offset(x: -6, y: -40)
             }
+            // Claims the full width and left-aligns its content instead of sizing to fit — without
+            // this, ContentView's ZStack (default .center alignment) centers the whole block on
+            // screen since nothing here was reserving/filling the rest of the row.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
-            .padding(.bottom, 182)
+            .padding(.bottom, 175)
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .onChange(of: dialogue) { _, _ in

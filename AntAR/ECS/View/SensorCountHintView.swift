@@ -23,7 +23,7 @@ struct SensorCountHintView: View {
                 Image("Group 43")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 125)
+                    .frame(width: 165)
                     .offset(x: -15)
 
                 Button(action: dismiss) {
@@ -33,7 +33,7 @@ struct SensorCountHintView: View {
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: 190, alignment: .leading)
                         .padding(.top, 16)
-                        .padding(.horizontal, 22)
+                        .padding(.leading, 50)
                         .padding(.bottom, 28)
                         .background(
                             LeadingTailBubbleShape()
@@ -49,8 +49,11 @@ struct SensorCountHintView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Coba ubah jumlah sensornya")
                 .accessibilityHint("Ketuk untuk menutup petunjuk")
-                .offset(x: 8, y: -8)
+                .offset(x: -6, y: -40)
             }
+            // Same fix as UFOTravelDialogueView — without this, the parent ZStack's default
+            // .center alignment centers this whole block instead of pinning it to the left edge.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.bottom, 182)
         }
