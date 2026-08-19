@@ -591,35 +591,27 @@ final class ARExperienceViewModel {
         guard !hasRevealedEnvironment, let masterScene else { return }
         hasRevealedEnvironment = true
 
-        let authoredTerrain = EnvironmentLayoutConfig.terrainEntityNames.lazy.compactMap {
-            masterScene.findEntity(named: $0)
-        }.first
-        let flatBackground = EnvironmentLayoutConfig.fallbackBackgroundEntityNames.lazy.compactMap {
+        let authoredSurface = EnvironmentLayoutConfig.authoredSurfaceEntityNames.lazy.compactMap {
             masterScene.findEntity(named: $0)
         }.first
 
-        // Prefer the authored terrain and preserve every material from its USDZ. The simple
-        // brown plane remains a fallback for scenes that have not added the terrain asset yet.
-        if let terrain = authoredTerrain {
-            terrain.isEnabled = true
-            flatBackground?.isEnabled = false
-        } else if let background = flatBackground {
-            background.isEnabled = true
-
-            if let modelHolder = Self.modelEntity(in: background),
-               var model = modelHolder.components[ModelComponent.self] {
-                var material = PhysicallyBasedMaterial()
-                material.baseColor = .init(tint: EnvironmentLayoutConfig.backgroundColor)
-                material.roughness = .init(floatLiteral: 0.92)
-                material.metallic = .init(floatLiteral: 0)
-                model.materials = [material]
-                modelHolder.components[ModelComponent.self] = model
+        // The scene-authored background is the complete surface: geometry, dimensions, and all
+        // PBR materials come directly from RCP. Swift only controls visibility and never replaces
+        // its material with a generated color.
+        if let authoredSurface {
+            authoredSurface.isEnabled = true
+            for name in EnvironmentLayoutConfig.fallbackBackgroundEntityNames {
+                masterScene.findEntity(named: name)?.isEnabled = false
             }
+        } else if let fallback = EnvironmentLayoutConfig.fallbackBackgroundEntityNames.lazy.compactMap({
+            masterScene.findEntity(named: $0)
+        }).first {
+            fallback.isEnabled = true
         }
 
         masterScene.findEntity(named: EnvironmentLayoutConfig.nestEntityName)?.isEnabled = true
 
-        for (index, name) in EnvironmentLayoutConfig.grassEntityNames.enumerated() {
+        for (index, name) in EnvironmentLayoutConfig.decorativeEntityNames.enumerated() {
             masterScene.findEntity(named: name)?.isEnabled = true
 
             // Two small assets per frame is visually immediate but avoids one large activation
