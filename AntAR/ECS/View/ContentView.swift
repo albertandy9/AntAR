@@ -17,14 +17,16 @@ struct ContentView: View {
     @State private var isCameraAuthorized = false
     @State private var realityViewFrame: CGRect = .zero
     @State private var inventoryFrame: CGRect = .zero
-    @State private var pendingHeldBlockID: String?
+    @State private var draggedInventoryBlockID: String?
     @State private var draggedPlacedBlockID: String?
-    @State private var placedBlockHoldTask: Task<Void, Never>?
-    @State private var isPlacedBlockHoldCancelled = false
     @State private var isInventoryReturnTargeted = false
+    @State private var isStoryDialoguePresented = false
 
-    private let placedBlockHoldDuration = Duration.milliseconds(350)
-    private let placedBlockHoldMovementTolerance: CGFloat = 18
+    private var isInteractionBlockedByDialogue: Bool {
+        isStoryDialoguePresented
+            || viewModel.isShowingBoardHint
+            || viewModel.activeTravelDialogue != nil
+    }
 
     var body: some View {
         if hasStartedExperience {
@@ -54,11 +56,6 @@ struct ContentView: View {
                             .onChanged(handlePlacedBlockDragChanged)
                             .onEnded(handlePlacedBlockDragEnded)
                     )
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let blockID = items.first else { return false }
-                        viewModel.placeBlockInFrontOfUFO(blockID: blockID)
-                        return true
-                    }
                     .ignoresSafeArea()
             }
 
@@ -81,7 +78,10 @@ struct ContentView: View {
                     HStack {
                         BlockInventoryView(
                             collectedBlocks: viewModel.collectedBlocks,
-                            isReturnTargeted: isInventoryReturnTargeted
+                            isReturnTargeted: isInventoryReturnTargeted,
+                            selectedBlockID: draggedInventoryBlockID,
+                            onBlockDragChanged: handleInventoryBlockDragChanged,
+                            onBlockDragEnded: handleInventoryBlockDragEnded
                         )
                         .onGeometryChange(for: CGRect.self) { geometry in
                             geometry.frame(in: .global)
@@ -133,9 +133,18 @@ struct ContentView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: viewModel.isBlockTooFarWarning)
 
+            if isInteractionBlockedByDialogue {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { }
+                    .accessibilityHidden(true)
+            }
+
             StoryBubbleSequenceView(
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,
                 hasTappedUFO: viewModel.hasTappedUFO,
+                isPresentingDialogue: $isStoryDialoguePresented,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
                 onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
             )
@@ -168,40 +177,26 @@ struct ContentView: View {
         .task {
             isCameraAuthorized = await AVCaptureDevice.requestAccess(for: .video)
         }
+        .onChange(of: isInteractionBlockedByDialogue) { _, isBlocked in
+            guard isBlocked else { return }
+            cancelGameplayInteractions()
+        }
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeTravelDialogue)
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
-        if !isPlacedBlockHoldCancelled,
-           pendingHeldBlockID == nil,
-           draggedPlacedBlockID == nil {
+        guard !isInteractionBlockedByDialogue else { return }
+
+        if draggedPlacedBlockID == nil {
             guard let arView,
                   let hitEntity = arView.entity(at: value.startLocation),
-                  let blockID = viewModel.placedBlockID(containing: hitEntity) else {
+                  let blockID = viewModel.placedBlockID(containing: hitEntity),
+                  viewModel.canReturnPlacedBlockToInventory(blockID: blockID) else {
                 return
             }
 
-            pendingHeldBlockID = blockID
-            placedBlockHoldTask?.cancel()
-            placedBlockHoldTask = Task { @MainActor in
-                try? await Task.sleep(for: placedBlockHoldDuration)
-                guard !Task.isCancelled, pendingHeldBlockID == blockID else { return }
-
-                pendingHeldBlockID = nil
-                draggedPlacedBlockID = blockID
-                viewModel.setPlacedBlockHoldActive(true, blockID: blockID)
-            }
-        }
-
-        if draggedPlacedBlockID == nil {
-            let movement = hypot(value.translation.width, value.translation.height)
-            if movement > placedBlockHoldMovementTolerance {
-                placedBlockHoldTask?.cancel()
-                placedBlockHoldTask = nil
-                pendingHeldBlockID = nil
-                isPlacedBlockHoldCancelled = true
-            }
-            return
+            draggedPlacedBlockID = blockID
+            viewModel.setPlacedBlockHoldActive(true, blockID: blockID)
         }
 
         let globalLocation = CGPoint(
@@ -214,11 +209,6 @@ struct ContentView: View {
     }
 
     private func handlePlacedBlockDragEnded(_ value: DragGesture.Value) {
-        placedBlockHoldTask?.cancel()
-        placedBlockHoldTask = nil
-        pendingHeldBlockID = nil
-        isPlacedBlockHoldCancelled = false
-
         guard let blockID = draggedPlacedBlockID else {
             isInventoryReturnTargeted = false
             return
@@ -241,8 +231,40 @@ struct ContentView: View {
         isInventoryReturnTargeted = false
     }
 
+    private func handleInventoryBlockDragChanged(blockID: String, location: CGPoint) {
+        guard !isInteractionBlockedByDialogue else { return }
+        draggedInventoryBlockID = blockID
+    }
+
+    private func handleInventoryBlockDragEnded(
+        blockID: String,
+        location: CGPoint,
+        translation: CGSize
+    ) {
+        defer { draggedInventoryBlockID = nil }
+        guard !isInteractionBlockedByDialogue else { return }
+
+        let dragDistance = hypot(translation.width, translation.height)
+        guard dragDistance >= 8,
+              realityViewFrame.contains(location),
+              !inventoryFrame.insetBy(dx: -12, dy: -12).contains(location) else {
+            return
+        }
+        viewModel.placeBlockInFrontOfUFO(blockID: blockID)
+    }
+
+    private func cancelGameplayInteractions() {
+        if let blockID = draggedPlacedBlockID {
+            viewModel.setPlacedBlockHoldActive(false, blockID: blockID)
+        }
+        draggedPlacedBlockID = nil
+        draggedInventoryBlockID = nil
+        isInventoryReturnTargeted = false
+        viewModel.setGasPedalPressed(false)
+    }
+
     private func handleTap(at location: CGPoint) {
-        guard let arView else { return }
+        guard !isInteractionBlockedByDialogue, let arView else { return }
 
         if viewModel.gameState == .ufoAppears {
             if let tappedEntity = arView.entity(at: location) {

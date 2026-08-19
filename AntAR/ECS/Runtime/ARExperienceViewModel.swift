@@ -795,8 +795,18 @@ final class ARExperienceViewModel {
         return nil
     }
 
-    /// Visual acknowledgement after the placed-block hold gesture has completed. A normal tap
-    /// does not change appearance, teaching the learner to press, hold, and then drag.
+    /// A route is a contiguous sequence, so only its exposed end can be removed. Removing an
+    /// earlier tile while a later one is still installed would leave a gap behind the UFO and
+    /// make the placement guide/order ambiguous.
+    func canReturnPlacedBlockToInventory(blockID: String) -> Bool {
+        guard let blockSlot = placedBlockIDsBySlot.firstIndex(where: { $0 == blockID }),
+              let lastOccupiedSlot = placedBlockIDsBySlot.lastIndex(where: { $0 != nil }) else {
+            return false
+        }
+        return blockSlot == lastOccupiedSlot
+    }
+
+    /// Immediate visual acknowledgement while a placed block is being touched and dragged.
     func setPlacedBlockHoldActive(_ active: Bool, blockID: String) {
         guard placedBlockIDsBySlot.contains(where: { $0 == blockID }),
               let block = masterScene?.findEntity(named: blockID) else {
@@ -809,6 +819,7 @@ final class ARExperienceViewModel {
     /// collision, material, and ECS appearance data are reused the next time it is placed.
     func returnPlacedBlockToInventory(blockID: String) {
         guard gameState != .completed,
+              canReturnPlacedBlockToInventory(blockID: blockID),
               let slotIndex = placedBlockIDsBySlot.firstIndex(where: { $0 == blockID }),
               let masterScene,
               let block = masterScene.findEntity(named: blockID),

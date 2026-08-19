@@ -11,6 +11,7 @@ import UIKit
 struct StoryBubbleSequenceView: View {
     let lostAntGreetPhase: LostAntGreetPhase?
     let hasTappedUFO: Bool
+    @Binding var isPresentingDialogue: Bool
     // Called exactly once, the moment the player dismisses the second UFO story line — the ant
     // boarding animation is meant to start only after that, not automatically the instant the UFO
     // lands. See ARExperienceViewModel.beginAntBoardingIfNeeded's header comment.
@@ -113,6 +114,8 @@ struct StoryBubbleSequenceView: View {
                                 .padding(.bottom, 100)
                         }
                     }
+                    .onAppear { isPresentingDialogue = true }
+                    .onDisappear { isPresentingDialogue = false }
                 }
             }
         }
@@ -193,6 +196,7 @@ struct StoryBubbleSequenceView: View {
         StoryBubbleSequenceView(
             lostAntGreetPhase: .releasing,
             hasTappedUFO: true,
+            isPresentingDialogue: .constant(false),
             onUFOStoryDismissed: {},
             onAntDialogueDismissed: {}
         )

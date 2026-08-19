@@ -9,9 +9,9 @@
 //  in with that color's block art (+ "×N" badge once N>1) the moment the first block of that color
 //  is collected, and stays filled/updates in place after that.
 //
-//  Slots stay draggable — dragging a filled slot's representative block.id is exactly what
-//  ContentView's AR-view dropDestination and the return-to-inventory drag logic key off,
-//  unchanged from before this reskin. Empty slots aren't draggable (nothing to drag yet).
+//  Filled slots use an immediate zero-distance drag gesture instead of SwiftUI's delayed
+//  transferable drag. ContentView receives the representative block id and places it when the
+//  drag ends over the AR area. Empty slots aren't draggable (nothing to drag yet).
 //
 //  isReturnTargeted mirrors ARExperienceViewModel-driven state from ContentView (true while a
 //  placed-on-the-table block is being dragged back over this view) — shown as a yellow dashed
@@ -24,6 +24,9 @@ import UIKit
 struct BlockInventoryView: View {
     let collectedBlocks: [CollectedBlock]
     let isReturnTargeted: Bool
+    let selectedBlockID: String?
+    let onBlockDragChanged: (_ blockID: String, _ location: CGPoint) -> Void
+    let onBlockDragEnded: (_ blockID: String, _ location: CGPoint, _ translation: CGSize) -> Void
 
     private static let slotSize: CGFloat = 44
     private static let containerFill = Color(red: 247 / 255, green: 213 / 255, blue: 168 / 255)
@@ -104,7 +107,10 @@ struct BlockInventoryView: View {
             }
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(Self.containerBorder, lineWidth: slot.count == 0 ? 1.5 : 2)
+                    .stroke(
+                        slot.representativeID == selectedBlockID ? Color.yellow : Self.containerBorder,
+                        lineWidth: slot.representativeID == selectedBlockID ? 4 : (slot.count == 0 ? 1.5 : 2)
+                    )
             )
             .overlay(alignment: .topTrailing) {
                 if slot.count > 1 {
@@ -120,9 +126,19 @@ struct BlockInventoryView: View {
                 }
             }
             .shadow(radius: slot.count == 0 ? 0 : 2)
+            .scaleEffect(slot.representativeID == selectedBlockID ? 1.08 : 1)
+            .animation(.easeOut(duration: 0.1), value: selectedBlockID)
 
         if let representativeID = slot.representativeID {
-            base.draggable(representativeID)
+            base.gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { value in
+                        onBlockDragChanged(representativeID, value.location)
+                    }
+                    .onEnded { value in
+                        onBlockDragEnded(representativeID, value.location, value.translation)
+                    }
+            )
         } else {
             base
         }
@@ -170,7 +186,13 @@ struct BlockInventoryView: View {
         Color.gray.ignoresSafeArea()
         HStack(alignment: .top, spacing: 30) {
             // All 4 slots empty from the start — no items collected yet.
-            BlockInventoryView(collectedBlocks: [], isReturnTargeted: false)
+            BlockInventoryView(
+                collectedBlocks: [],
+                isReturnTargeted: false,
+                selectedBlockID: nil,
+                onBlockDragChanged: { _, _ in },
+                onBlockDragEnded: { _, _, _ in }
+            )
             // Black (picked up FIRST) still sits in its fixed last slot, and the two reds share
             // one slot with a ×2 badge — yellow's slot stays empty.
             BlockInventoryView(
@@ -180,14 +202,20 @@ struct BlockInventoryView: View {
                     CollectedBlock(name: "block_blue", uiColor: .systemBlue),
                     CollectedBlock(name: "block_red_2", uiColor: .systemRed)
                 ],
-                isReturnTargeted: false
+                isReturnTargeted: false,
+                selectedBlockID: nil,
+                onBlockDragChanged: { _, _ in },
+                onBlockDragEnded: { _, _, _ in }
             )
             BlockInventoryView(
                 collectedBlocks: [
                     CollectedBlock(name: "block_red", uiColor: .systemRed),
                     CollectedBlock(name: "block_blue", uiColor: .systemBlue)
                 ],
-                isReturnTargeted: true
+                isReturnTargeted: true,
+                selectedBlockID: nil,
+                onBlockDragChanged: { _, _ in },
+                onBlockDragEnded: { _, _, _ in }
             )
         }
         .padding()
