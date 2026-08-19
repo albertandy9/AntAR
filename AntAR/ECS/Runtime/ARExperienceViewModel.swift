@@ -32,6 +32,9 @@ final class ARExperienceViewModel {
     var ufoStallReason: UFOStallReason?
     var isBlockTooFarWarning = false
     private(set) var activeTravelDialogue: UFOTravelDialogue?
+    private(set) var isCompletionCardPresented = false
+    private(set) var completionCardScreenPosition: CGPoint?
+    private(set) var completionCardScale: CGFloat = 1
     private(set) var isAwaitingSensorInspectionTap = false
     var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
@@ -168,6 +171,7 @@ final class ARExperienceViewModel {
                 } else if state == .completed {
                     self?.releaseGasPedal()
                     self?.presentCompletedExperience()
+                    self?.enqueueTravelDialogue(.arrivedHome)
                 }
             }
         }
@@ -450,6 +454,35 @@ final class ARExperienceViewModel {
             dx = 1
         }
         ufoDirection = CGVector(dx: dx, dy: dy)
+    }
+
+    /// Keeps the completion card attached to a point above the authored ant nest. The card stays
+    /// interactive SwiftUI, while its position and apparent scale respond like a world object as
+    /// the learner moves the phone around the AR scene.
+    func refreshCompletionCardPlacement(using arView: ARView) {
+        guard gameState == .completed,
+              isCompletionCardPresented,
+              let home = masterScene?.findEntity(named: AntARSceneNames.home) else {
+            completionCardScreenPosition = nil
+            return
+        }
+
+        var cardWorldPosition = home.position(relativeTo: nil)
+        cardWorldPosition.y += 0.28
+        guard let projectedPosition = arView.project(cardWorldPosition) else {
+            completionCardScreenPosition = nil
+            return
+        }
+
+        if completionCardScreenPosition.map({ hypot($0.x - projectedPosition.x, $0.y - projectedPosition.y) > 0.5 }) != false {
+            completionCardScreenPosition = projectedPosition
+        }
+
+        let cameraDistance = simd_distance(cameraAnchor.position(relativeTo: nil), cardWorldPosition)
+        let newScale = min(max(CGFloat(0.72 / max(cameraDistance, 0.01)), 0.68), 1.15)
+        if abs(completionCardScale - newScale) > 0.005 {
+            completionCardScale = newScale
+        }
     }
 
     func handleUFOTapped(_ tappedEntity: Entity) {
@@ -1080,6 +1113,10 @@ final class ARExperienceViewModel {
             ? nil
             : pendingTravelDialogues.removeFirst()
 
+        if dialogue == .arrivedHome {
+            isCompletionCardPresented = true
+        }
+
         if activeTravelDialogue == nil, shouldPromptSensorInspectionWhenDialoguesFinish {
             shouldPromptSensorInspectionWhenDialoguesFinish = false
             isAwaitingSensorInspectionTap = true
@@ -1178,6 +1215,78 @@ final class ARExperienceViewModel {
         control.setThrottle(0)
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+    }
+
+    /// Restarts only the learning loop. The existing placement anchor is preserved, while the
+    /// authored scene is reloaded so every scattered block regains its original RCP transform.
+    func restartFromBlockFinding() {
+        guard gameState == .completed, placementAnchor != nil else { return }
+
+        isCompletionCardPresented = false
+        completionCardScreenPosition = nil
+        completionCardScale = 1
+        activeTravelDialogue = nil
+        pendingTravelDialogues.removeAll()
+        shouldPromptSensorInspectionWhenDialoguesFinish = false
+        isAwaitingSensorInspectionTap = false
+        isShowingBoardHint = false
+        isInspectingUFO = false
+        isFinishingUFOInspection = false
+        isBlockTooFarWarning = false
+        ufoStallReason = nil
+        lastObservedUFOStallReason = nil
+        ufoTapScreenPosition = nil
+        ufoDirection = nil
+
+        collectedBlocks.removeAll()
+        collectedBlockIDs.removeAll()
+        placedBlockIDsBySlot = Array(repeating: nil, count: BlockPlacementConfig.dropSlotNames.count)
+        hasSpawnedBlocks = false
+        hasRevealedEnvironment = false
+        isTravelUFOReady = false
+        hasReportedRequiredBlocksCollected = false
+        hasReportedRequiredPathPlaced = false
+        hasReportedUFOMoveRequested = false
+        hasShownFirstPathDialogue = false
+        hasShownSensorAdjustmentDialogue = false
+        hasShownSensorCalibratedDialogue = false
+
+        sensorCount = IRSensorLayout.minimumCount
+        irLineActivations = Array(repeating: 0, count: sensorCount)
+        isIRLineDetected = false
+        irLinePosition = 0
+        leftMotorPower = 0
+        rightMotorPower = 0
+        sensorLearningPhase = .baseline
+        gameDirector.components.set(UFOControlComponent())
+
+        masterScene?.removeFromParent()
+        masterScene = nil
+        masterSceneLoadTask = nil
+        masterSceneAssetLoadTask = nil
+
+        // Keep the boarding/ascent story from replaying; the retry begins directly at block
+        // discovery, then reveals the authored environment and travel UFO below.
+        hasStartedUFOAscend = true
+        report(.retryFromBlocks)
+
+        Task { [weak self] in
+            guard let self else { return }
+            await self.prepareBlockFindingRetryScene()
+        }
+    }
+
+    private func prepareBlockFindingRetryScene() async {
+        await loadMasterSceneIfNeeded()
+        guard let masterScene,
+              let travelUFO = masterScene.findEntity(named: AntARSceneNames.travelUFO) else {
+            return
+        }
+
+        await revealEnvironment()
+        travelUFO.isEnabled = true
+        setIRVisualsEnabled(false, on: travelUFO)
+        isTravelUFOReady = true
     }
 
     private func setIRVisualsEnabled(_ enabled: Bool, on ufo: Entity) {

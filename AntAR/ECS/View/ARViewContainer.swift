@@ -81,6 +81,7 @@ struct ARViewContainer: UIViewRepresentable {
             viewModel?.refreshIRTelemetry()
             if let arView = coordinator.arView {
                 viewModel?.refreshUFODirectionIndicator(using: arView)
+                viewModel?.refreshCompletionCardPlacement(using: arView)
             }
             if !coordinator.hasHandedOffFromCoaching,
                let trackingState = coordinator.arView?.session.currentFrame?.camera.trackingState,

@@ -47,10 +47,10 @@ public struct UFOPathFollowingSystem: System {
         let gameState = director.components[GameStateComponent.self]?.current,
         let control = director.components[UFOControlComponent.self],
         gameState.supportsRouteBuilding,
-        context.entities(
+        let home = context.entities(
             matching: Self.homeQuery,
             updatingSystemWhen: .rendering
-        ).first(where: { _ in true }) != nil else {
+        ).first(where: { _ in true }) else {
             return
         }
 
@@ -100,6 +100,34 @@ public struct UFOPathFollowingSystem: System {
                 follower.rightMotorPower = 0
                 ufo.components[UFOPathFollowerComponent.self] = follower
                 continue
+            }
+
+            // Recover if the chassis has already crossed the final block and stopped over the
+            // nest. This is intentionally limited to a complete dark route and a no-path stall,
+            // so proximity to the nest can never bypass a missing or reflective block.
+            let hasCompleteDarkRoute = (1...BlockPlacementConfig.requiredPathBlockCount)
+                .allSatisfy { order in
+                    tiles.contains { tile in
+                        tile.1.order == order && tile.2.isValidPath
+                    }
+                }
+            if follower.state == .stalled,
+               follower.stallReason == .noPath,
+               follower.currentTargetOrder >= BlockPlacementConfig.requiredPathBlockCount,
+               hasCompleteDarkRoute,
+               surfaceDistance(from: ufo, to: home)
+                    <= UFOPathFollowerComponent.maximumHomeConnectionDistance {
+                arrive(&follower, gameState: gameState, director: director)
+                ufo.components[UFOPathFollowerComponent.self] = follower
+                continue
+            }
+
+            // A block may be placed while the UFO is crossing the exposed end of the previous
+            // one. Adopt it immediately instead of waiting for a line-loss stall first.
+            if follower.isTraversingCurrentTileEnd,
+               tiles.contains(where: { $0.1.order == follower.currentTargetOrder + 1 }) {
+                follower.currentTargetOrder += 1
+                follower.isTraversingCurrentTileEnd = false
             }
 
             // Repair a transient no-path classification if a newly placed light block entered
@@ -189,21 +217,30 @@ public struct UFOPathFollowingSystem: System {
                     throttle: control.throttle
                 )
 
-                if simd_distance(ufo.position(relativeTo: nil), target.0.position(relativeTo: nil))
+                // Once the centre has been crossed without a following block, keep travelling
+                // until the physical sensors leave the far edge. `driveWithSensorArray` owns the
+                // debounced line-loss classification; only then advance the remembered target so
+                // a later placement resumes from the missing block rather than going backwards.
+                if follower.state == .stalled,
+                   follower.stallReason == .noPath,
+                   follower.isTraversingCurrentTileEnd {
+                    follower.currentTargetOrder = target.1.order + 1
+                    follower.isTraversingCurrentTileEnd = false
+                }
+
+                // Route progress lives on the table plane. Comparing full 3D positions can never
+                // succeed because the UFO intentionally hovers well above each block.
+                if surfaceDistance(from: ufo, to: target.0)
                     <= UFOPathFollowerComponent.arrivalDistance {
                     if target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
-                        follower.state = .arrived
-                        follower.moveRequested = false
-                        follower.leftMotorPower = 0
-                        follower.rightMotorPower = 0
-                        if gameState == .ufoTravelling, !follower.completionReported {
-                            report(.ufoReachedHome, on: director)
-                            follower.completionReported = true
-                        }
+                        arrive(&follower, gameState: gameState, director: director)
                     } else if tiles.contains(where: { $0.1.order == target.1.order + 1 }) {
                         follower.currentTargetOrder += 1
+                        follower.isTraversingCurrentTileEnd = false
                     } else {
-                        waitForNextTile(&follower, after: target.1.order)
+                        // The next slot is empty, but half of this block is still ahead. Keep the
+                        // motors running and wait for real sensor line loss at its far edge.
+                        follower.isTraversingCurrentTileEnd = true
                     }
                 }
             } else {
@@ -348,6 +385,32 @@ public struct UFOPathFollowingSystem: System {
         )
     }
 
+    private func surfaceDistance(from source: Entity, to destination: Entity) -> Float {
+        let sourcePosition = source.position(relativeTo: nil)
+        let destinationPosition = destination.position(relativeTo: nil)
+        return simd_distance(
+            SIMD2<Float>(sourcePosition.x, sourcePosition.z),
+            SIMD2<Float>(destinationPosition.x, destinationPosition.z)
+        )
+    }
+
+    private func arrive(
+        _ follower: inout UFOPathFollowerComponent,
+        gameState: GameState,
+        director: Entity
+    ) {
+        follower.state = .arrived
+        follower.stallReason = nil
+        follower.moveRequested = false
+        follower.isTraversingCurrentTileEnd = false
+        follower.leftMotorPower = 0
+        follower.rightMotorPower = 0
+        if gameState == .ufoTravelling, !follower.completionReported {
+            report(.ufoReachedHome, on: director)
+            follower.completionReported = true
+        }
+    }
+
     private func clamp(_ value: Float, _ minimum: Float, _ maximum: Float) -> Float {
         min(max(value, minimum), maximum)
     }
@@ -358,11 +421,6 @@ public struct UFOPathFollowingSystem: System {
         follower.moveRequested = false
         follower.leftMotorPower = 0
         follower.rightMotorPower = 0
-    }
-
-    private func waitForNextTile(_ follower: inout UFOPathFollowerComponent, after order: Int) {
-        follower.currentTargetOrder = order + 1
-        stall(&follower, reason: .noPath)
     }
 
     private func report(_ event: GameEvent, on director: Entity) {

@@ -28,6 +28,10 @@ public struct UFOPathFollowerComponent: Component, Codable {
     public var moveRequested: Bool
     public var completionReported: Bool
     public var currentTargetOrder: Int
+    /// True after the UFO crosses the current block's centre while the next ordered block is
+    /// still absent. Movement continues over the remaining half of the block and only becomes a
+    /// no-path stall when the sensors actually leave its far edge.
+    public var isTraversingCurrentTileEnd: Bool
     public var elapsedTravelTime: Float
     /// Start position in the travel UFO parent's coordinate space, so AR anchor corrections do
     /// not invalidate reset behavior.
@@ -46,6 +50,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         moveRequested: Bool = false,
         completionReported: Bool = false,
         currentTargetOrder: Int = 1,
+        isTraversingCurrentTileEnd: Bool = false,
         elapsedTravelTime: Float = 0,
         routeStartPosition: SIMD3<Float>? = nil,
         hoverHeight: Float = 0.43,
@@ -61,6 +66,7 @@ public struct UFOPathFollowerComponent: Component, Codable {
         self.moveRequested = moveRequested
         self.completionReported = completionReported
         self.currentTargetOrder = currentTargetOrder
+        self.isTraversingCurrentTileEnd = isTraversingCurrentTileEnd
         self.elapsedTravelTime = elapsedTravelTime
         self.routeStartPosition = routeStartPosition
         self.hoverHeight = max(hoverHeight, 0.05)
@@ -72,7 +78,9 @@ public struct UFOPathFollowerComponent: Component, Codable {
     }
 
     public static let travelSpeed: Float = 0.20
+    /// Horizontal XZ distance used to advance between route blocks.
     public static let arrivalDistance: Float = 0.08
+    /// Recovery radius used only after a complete dark route ends over the authored nest.
     public static let maximumHomeConnectionDistance: Float = 0.70
     public static let proportionalGain: Float = 1.75
     public static let derivativeGain: Float = 0.035

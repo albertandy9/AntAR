@@ -49,6 +49,7 @@ public struct UFOControlSystem: System {
             follower.moveRequested = true
             follower.completionReported = false
             follower.currentTargetOrder = 1
+            follower.isTraversingCurrentTileEnd = false
             follower.elapsedTravelTime = 0
             follower.steeringError = 0
             follower.previousSteeringError = 0
