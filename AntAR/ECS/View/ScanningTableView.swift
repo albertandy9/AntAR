@@ -30,15 +30,15 @@ struct ScanningTableView: View {
 
     private var caption: String {
         if isReadyToPlace {
-            "Jarak ke bidang sudah cukup"
+            "Bidang datar terdeteksi"
         } else if isSurfaceTooSmall {
-            "Cari bidang datar"
+            "Arahkan kamera ke bidang datar"
         } else if surfaceDistanceStatus == .tooClose {
-            "Jarak ke bidang belum cukup"
+            "Mundur sedikit"
         } else if surfaceDistanceStatus == .tooFar {
-            "Jarak ke bidang terlalu jauh"
+            "Maju sedikit"
         } else {
-            "Cari bidang datar"
+            "Arahkan kamera ke bidang datar"
         }
     }
 

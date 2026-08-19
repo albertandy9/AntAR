@@ -15,7 +15,7 @@ struct BlockOutOfRangeBanner: View {
     private static let shadowColor = Color.black.opacity(0.18)
 
     var body: some View {
-        Text("Balok diluar jangkauan")
+        Text("Mendekat ke balok untuk mengambil")
             .font(.callout.weight(.semibold))
             .foregroundStyle(Self.textColor)
             .multilineTextAlignment(.center)

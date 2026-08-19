@@ -28,29 +28,27 @@ enum UFOTravelDialogue: String, Equatable, Sendable {
         switch self {
         case .firstPathSuccess:
             [
-                "Yey, UFO berhasil jalan...",
-                "UFO bisa jalan karena sinar inframerah yang dipancarkan berhasil diserap oleh papan."
+                "Yeay!!~ UFO berhasil jalan...",
+                "UFO bisa jalan karena sinar inframerah yang dipancarkan di serap oleh balok."
             ]
         case .noPath:
             [
-                "Sepertinya UFO belum bisa melanjutkan perjalanan...",
-                "Sensor tidak menemukan balok di depan UFO. Yuk tambahkan balok jalur lagi.",
-                "Tarik balok lain dari inventori ke jalur untuk melanjutkan perjalanan."
+                "Lanjut letakkan balok di atas permukaan untuk membuat jalur bagi UFO!"
             ]
         case .lightBlock:
             [
                 "Sepertinya UFO tidak bisa jalan...",
                 "Ini karena cahaya inframerah dipantulkan oleh balok berwarna terang.",
-                "Tekan dan tahan balok terang, lalu tarik kembali ke inventori. Ganti dengan balok berwarna gelap."
+                "Coba ganti warna baloknya..."
             ]
         case .sensorAdjustment:
             [
-                "Eh... tadi kok jalannya UFO oleng...",
-                "Sepertinya jumlah sensornya perlu disesuaikan. Coba lihat ke bawah UFO."
+                "Ehhhh.. kenapa UFO jalannya tidak mulus?",
+                "Hmm... sepertinya UFO perlu diperbaiki. Coba lihat kebawah UFO."
             ]
         case .sensorCalibrated:
             [
-                "Jalannya UFO lebih mulus nih.",
+                "Wahhh.... Jalannya UFO lebih mulus nih.",
                 "Ternyata, semakin banyak sensor, pergerakan UFO makin mulus."
             ]
         case .arrivedHome:

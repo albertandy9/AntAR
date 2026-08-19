@@ -29,22 +29,62 @@ struct SpeechBubbleView: View {
     // actually reaches into the bubble) was smaller than intended each time.
     private static let avatarWidth: CGFloat = 240
 
-    var body: some View {
+    var body: some View
+//    {
+//        Text(text)
+//            .font(.custom("Fredoka-Regular", size: 20))
+//            .foregroundStyle(Self.textColor)
+//            .multilineTextAlignment(.leading)
+//            .frame(maxWidth: 330)
+//            .padding(.top, avatarImageName == nil ? 34 : 50)
+//            .padding(.bottom, 24)
+//            .padding(.horizontal, 20)
+//            .background(
+//                SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
+//                    .fill(Self.fillColor)
+//                    .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
+//            )
+//            // The arrow is attached to the bubble itself. The avatar is a separate overlay and
+//            // therefore cannot expand the layout bounds or push this indicator down the screen.
+//            .overlay(alignment: .bottomTrailing) {
+//                DialogueAdvanceIndicator()
+//                    .padding(.trailing, 16)
+//                    .padding(.bottom, 8)
+//                    .accessibilityHidden(true)
+//            }
+//            .overlay(alignment: .topLeading) {
+//                if let avatarImageName {
+//                    Image(avatarImageName)
+//                        .resizable()
+//                        .scaledToFit()
+//                        .frame(width: Self.avatarWidth)
+//                        .offset(x: -30, y: -60)
+//                }
+//            }
+//            .fixedSize(horizontal: false, vertical: true)
+//            .animation(.default, value: text)
+//    }
+    {
         Text(text)
             .font(.custom("Fredoka-Regular", size: 20))
             .foregroundStyle(Self.textColor)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: 330)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: 330, alignment: .leading)
             .padding(.top, avatarImageName == nil ? 34 : 50)
             .padding(.bottom, 24)
             .padding(.horizontal, 20)
             .background(
-                SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
-                    .fill(Self.fillColor)
-                    .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
+                SpeechBubbleShape(
+                    tailInset: avatarImageName == nil ? 80 : 225
+                )
+                .fill(Self.fillColor)
+                .shadow(
+                    color: Self.shadowColor,
+                    radius: 0,
+                    x: 2,
+                    y: 7
+                )
             )
-            // The arrow is attached to the bubble itself. The avatar is a separate overlay and
-            // therefore cannot expand the layout bounds or push this indicator down the screen.
             .overlay(alignment: .bottomTrailing) {
                 DialogueAdvanceIndicator()
                     .padding(.trailing, 16)

@@ -42,17 +42,17 @@ struct StoryBubbleSequenceView: View {
 
     private static let beats: [Beat] = [
         Beat(
-            text: "Aku tidak bisa pulang mengikuti rombongan karena antena ku copot",
+            text: "Aku tidak bisa mengikuti rombongan karena antena ku patah",
             position: .bottom,
             kind: .antDialogue
         ),
         Beat(
-            text: "Aku memerlukan antena ku untuk mendeteksi jalur perjalananku pulang",
+            text: "Aku memerlukan bantuan untuk menemukan jalan pulang",
             position: .bottom,
             kind: .antDialogue
         ),
         Beat(
-            text: "UFO ini sepertinya bukan UFO biasa...",
+            text: "Wahhh, UFO ini sepertinya bukan UFO biasa...",
             position: .bottom,
             kind: .ufoStory
         ),
