@@ -82,10 +82,6 @@ struct ARViewContainer: UIViewRepresentable {
             if let arView = coordinator.arView {
                 viewModel?.refreshUFODirectionIndicator(using: arView)
             }
-            if viewModel?.isInspectingUFO == true, let arView = coordinator.arView {
-                viewModel?.refreshUFOInspectionProjection(using: arView)
-            }
-
             if !coordinator.hasHandedOffFromCoaching,
                let trackingState = coordinator.arView?.session.currentFrame?.camera.trackingState,
                case .normal = trackingState {

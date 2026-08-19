@@ -153,10 +153,15 @@ struct ContentView: View {
             }
 
             if viewModel.isInspectingUFO {
-                GeometryReader { geometry in
-                    UFOSensorInspectionView(viewModel: viewModel)
-                        .position(inspectionControlPosition(in: geometry.size))
+                VStack {
+                    HStack {
+                        Spacer()
+                        UFOSensorInspectionView(viewModel: viewModel)
+                    }
+                    Spacer()
                 }
+                .padding(.top, 72)
+                .padding(.trailing, 16)
                 .ignoresSafeArea()
             }
         }
@@ -262,17 +267,6 @@ struct ContentView: View {
         let planeTransform = viewModel.scannedTable.transformMatrix(relativeTo: nil)
         guard let tappedPoint = Self.intersect(ray: ray, withPlane: planeTransform) else { return }
         viewModel.confirmPlacement(at: tappedPoint)
-    }
-
-    private func inspectionControlPosition(in size: CGSize) -> CGPoint {
-        let ufoPosition = viewModel.ufoInspectionScreenPosition
-            ?? CGPoint(x: size.width / 2, y: size.height * 0.38)
-        let halfPanelWidth: CGFloat = 118
-        let panelHalfHeight: CGFloat = 105
-        return CGPoint(
-            x: min(max(ufoPosition.x, halfPanelWidth), size.width - halfPanelWidth),
-            y: min(max(ufoPosition.y + 125, panelHalfHeight), size.height - panelHalfHeight)
-        )
     }
 
     private static func intersect(

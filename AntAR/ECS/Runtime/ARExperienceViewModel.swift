@@ -29,7 +29,6 @@ final class ARExperienceViewModel {
     var sensorLearningPhase: SensorLearningPhase = .baseline
     var isInspectingUFO = false
     var isFinishingUFOInspection = false
-    var ufoInspectionScreenPosition: CGPoint?
     var ufoStallReason: UFOStallReason?
     var isBlockTooFarWarning = false
     private(set) var activeTravelDialogue: UFOTravelDialogue?
@@ -102,7 +101,6 @@ final class ARExperienceViewModel {
     private var hasReportedRequiredPathPlaced = false
     private var hasReportedUFOMoveRequested = false
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
-    @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
     @ObservationIgnored private var pendingTravelDialogues: [UFOTravelDialogue] = []
     @ObservationIgnored private var shouldPromptSensorInspectionWhenDialoguesFinish = false
@@ -939,29 +937,7 @@ final class ARExperienceViewModel {
             guard let self else { return }
             self.isInspectingUFO = false
             self.isFinishingUFOInspection = false
-            self.ufoInspectionScreenPosition = nil
         }
-    }
-
-    /// Projects the paused UFO to screen space at 30 Hz so the readable SwiftUI sensor controls
-    /// track immediately beneath it without making per-frame entity or mesh changes.
-    func refreshUFOInspectionProjection(using arView: ARView) {
-        guard isInspectingUFO,
-              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO) else {
-            return
-        }
-
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastUFOProjectionRefreshTime >= 1.0 / 30.0 else { return }
-        lastUFOProjectionRefreshTime = now
-
-        guard let position = arView.project(ufo.position(relativeTo: nil)) else { return }
-
-        if let current = ufoInspectionScreenPosition,
-           hypot(current.x - position.x, current.y - position.y) < 1 {
-            return
-        }
-        ufoInspectionScreenPosition = position
     }
 
     func setIRSensorCount(_ requestedCount: Int) {
