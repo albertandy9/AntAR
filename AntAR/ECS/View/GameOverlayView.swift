@@ -39,7 +39,7 @@ struct GameOverlayView: View {
         case .ufoTravelling:
             UFOTravellingView()
         case .completed:
-            CompletedView()
+            EmptyView()
         default:
             EmptyView()
         }

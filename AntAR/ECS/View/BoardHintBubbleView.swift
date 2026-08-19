@@ -7,6 +7,7 @@ import SwiftUI
 import UIKit
 
 struct BoardHintBubbleView: View {
+    let message: String
     let onDismiss: () -> Void
 
     // Warna disesuaikan dengan referensi gambar (Cyan/Teal)
@@ -38,7 +39,7 @@ struct BoardHintBubbleView: View {
                         // edge — not the ant's body/head, which stays mostly on-screen.
                         .offset(x: -56, y: 45)
 
-                    Text("Belum ada balok di depan UFO.\nYuk pasang balok jalur terlebih dahulu!")
+                    Text(message)
                         .font(.custom("Fredoka-SemiBold", size: 18))
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
@@ -111,6 +112,7 @@ struct BottomLeftTailBubbleShape: Shape {
             .ignoresSafeArea()
 
         BoardHintBubbleView(
+            message: "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!",
             onDismiss: {}
         )
     }

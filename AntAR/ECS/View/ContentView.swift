@@ -7,6 +7,7 @@
 //
 
 import AVFoundation
+import ARKit
 import RealityKit
 import SwiftUI
 
@@ -150,7 +151,12 @@ struct ContentView: View {
             )
 
             if viewModel.isShowingBoardHint {
-                BoardHintBubbleView(onDismiss: viewModel.dismissBoardHint)
+                BoardHintBubbleView(
+                    message: viewModel.collectedBlocks.isEmpty
+                        ? "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!"
+                        : "Letakkan balok di atas permukaan untuk membuat jalur bagi UFO!",
+                    onDismiss: viewModel.dismissBoardHint
+                )
             }
 
             if let dialogue = viewModel.activeTravelDialogue {
@@ -173,6 +179,20 @@ struct ContentView: View {
                 .padding(.trailing, 16)
                 .ignoresSafeArea()
             }
+
+            if viewModel.isCompletionCardPresented,
+               let cardPosition = viewModel.completionCardScreenPosition {
+                GeometryReader { _ in
+                    LevelCompletedView(
+                        onHome: returnToHome,
+                        onRestart: viewModel.restartFromBlockFinding
+                    )
+                    .scaleEffect(viewModel.completionCardScale)
+                    .position(cardPosition)
+                }
+                .ignoresSafeArea()
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
         }
         .task {
             isCameraAuthorized = await AVCaptureDevice.requestAccess(for: .video)
@@ -182,6 +202,20 @@ struct ContentView: View {
             cancelGameplayInteractions()
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeTravelDialogue)
+        .animation(.spring(duration: 0.45), value: viewModel.isCompletionCardPresented)
+    }
+
+    private func returnToHome() {
+        arView?.session.pause()
+        arView = nil
+        viewModel = ARExperienceViewModel()
+        realityViewFrame = .zero
+        inventoryFrame = .zero
+        draggedInventoryBlockID = nil
+        draggedPlacedBlockID = nil
+        isInventoryReturnTargeted = false
+        isStoryDialoguePresented = false
+        hasStartedExperience = false
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {

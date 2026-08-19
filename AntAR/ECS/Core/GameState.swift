@@ -72,6 +72,8 @@ public enum GameState: String, CaseIterable, Codable, Sendable {
             .ufoTravelling
         case (.ufoTravelling, .ufoReachedHome):
             .completed
+        case (.completed, .retryFromBlocks):
+            .blocksScattered
         default:
             nil
         }

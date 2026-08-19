@@ -13,10 +13,11 @@ enum UFOTravelDialogue: String, Equatable, Sendable {
     case lightBlock
     case sensorAdjustment
     case sensorCalibrated
+    case arrivedHome
 
     var avatarImageName: String {
         switch self {
-        case .firstPathSuccess, .sensorCalibrated:
+        case .firstPathSuccess, .sensorCalibrated, .arrivedHome:
             "Group 38"
         case .noPath, .lightBlock, .sensorAdjustment:
             "Group 43"
@@ -51,6 +52,11 @@ enum UFOTravelDialogue: String, Equatable, Sendable {
             [
                 "Jalannya UFO lebih mulus nih.",
                 "Ternyata, semakin banyak sensor, pergerakan UFO makin mulus."
+            ]
+        case .arrivedHome:
+            [
+                "Yeayyy... Akhirnya aku sampai di rumah.",
+                "Terima Kasih yaa sudah membantuku..."
             ]
         }
     }
