@@ -13,6 +13,7 @@ struct GameOverlayView: View {
     let isCoachingOverlayActive: Bool
     let isSurfaceTooSmall: Bool
     let surfaceDistanceStatus: SurfaceDistanceStatus
+    let isGasPedalPressed: Bool
 
     var body: some View {
         switch state {
@@ -37,7 +38,9 @@ struct GameOverlayView: View {
         case .blocksScattered:
             EmptyView()
         case .ufoTravelling:
-            UFOTravellingView()
+            if !isGasPedalPressed {
+                UFOTravellingView()
+            }
         case .completed:
             EmptyView()
         default:

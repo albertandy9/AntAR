@@ -21,6 +21,7 @@ struct StoryBubbleSequenceView: View {
     // player can't start searching for the UFO until this fires. See
     // ARExperienceViewModel.confirmAntDialogueDismissed's header comment.
     let onAntDialogueDismissed: () -> Void
+    let onAntDialogueStarted: () -> Void
     private struct Beat {
         let text: String
         let position: Position
@@ -73,6 +74,7 @@ struct StoryBubbleSequenceView: View {
     // tick measures elapsed time against, not a cancellable timer.
     @State private var releasingStartedAt: Date?
     @State private var ufoTappedAt: Date?
+    @State private var hasStartedAntDialogueAudio = false
 
     var body: some View {
         // Only ticks while beats remain to be shown — previously ran unconditionally for the
@@ -114,7 +116,13 @@ struct StoryBubbleSequenceView: View {
                                 .padding(.bottom, 100)
                         }
                     }
-                    .onAppear { isPresentingDialogue = true }
+                    .onAppear {
+                        isPresentingDialogue = true
+                        if beat.kind == .antDialogue, !hasStartedAntDialogueAudio {
+                            hasStartedAntDialogueAudio = true
+                            onAntDialogueStarted()
+                        }
+                    }
                     .onDisappear { isPresentingDialogue = false }
                 }
             }
@@ -156,7 +164,7 @@ struct StoryBubbleSequenceView: View {
     }
 
     private func advance() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        ExperienceFeedback.shared.impact(.light)
         let dismissedBeat = Self.beats[currentIndex]
         currentIndex += 1
 
@@ -198,7 +206,8 @@ struct StoryBubbleSequenceView: View {
             hasTappedUFO: true,
             isPresentingDialogue: .constant(false),
             onUFOStoryDismissed: {},
-            onAntDialogueDismissed: {}
+            onAntDialogueDismissed: {},
+            onAntDialogueStarted: {}
         )
     }
 }

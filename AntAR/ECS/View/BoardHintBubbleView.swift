@@ -177,7 +177,7 @@ struct BoardHintBubbleView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            ExperienceFeedback.shared.impact(.light)
             onDismiss()
         }
     }

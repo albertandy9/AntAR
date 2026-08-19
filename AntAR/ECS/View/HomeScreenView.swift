@@ -297,6 +297,7 @@ struct OnboardingView: View {
     }
 
     private func advance() {
+        ExperienceFeedback.shared.play(.button)
         withAnimation(.easeInOut) {
             if pageIndex == 0 {
                 pageIndex = 1

@@ -31,6 +31,9 @@ struct BlockInventoryView: View {
     private static let slotSize: CGFloat = 44
     private static let containerFill = Color(red: 247 / 255, green: 213 / 255, blue: 168 / 255)
     private static let containerBorder = Color(red: 201 / 255, green: 140 / 255, blue: 68 / 255)
+    private static let slotBorder = Color(red: 0xF6 / 255, green: 0xB1 / 255, blue: 0x70 / 255)
+    private static let containerCornerRadius: CGFloat = 20
+    private static let slotCornerRadius: CGFloat = 7
     // Fixed order: every non-black color first (in this fixed order), black always last — matches
     // the only 4 rectangle assets that currently exist.
     private static let colorOrder = ["red-rectangle", "blue-rectangle", "yellow-rectangle", "black-rectangle"]
@@ -76,10 +79,10 @@ struct BlockInventoryView: View {
         // exactly what was slicing the badge circle where it crossed the capsule's border line.
         // .background always draws behind the content, so the border no longer covers anything.
         .background(
-            Capsule()
+            RoundedRectangle(cornerRadius: Self.containerCornerRadius)
                 .fill(isReturnTargeted ? Color.yellow.opacity(0.30) : Self.containerFill)
                 .overlay(
-                    Capsule().stroke(
+                    RoundedRectangle(cornerRadius: Self.containerCornerRadius).stroke(
                         isReturnTargeted ? Color.yellow : Self.containerBorder,
                         style: StrokeStyle(lineWidth: isReturnTargeted ? 3 : 2, dash: isReturnTargeted ? [8, 5] : [])
                     )
@@ -94,7 +97,7 @@ struct BlockInventoryView: View {
 
     @ViewBuilder
     private func slotView(for slot: Slot) -> some View {
-        let base = RoundedRectangle(cornerRadius: 10)
+        let base = RoundedRectangle(cornerRadius: Self.slotCornerRadius)
             .fill(slot.count == 0 ? Self.containerFill : Color.clear)
             .frame(width: Self.slotSize, height: Self.slotSize)
             .overlay {
@@ -106,9 +109,9 @@ struct BlockInventoryView: View {
                 }
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Self.slotCornerRadius)
                     .stroke(
-                        slot.representativeID == selectedBlockID ? Color.yellow : Self.containerBorder,
+                        slot.representativeID == selectedBlockID ? Color.yellow : Self.slotBorder,
                         lineWidth: slot.representativeID == selectedBlockID ? 4 : (slot.count == 0 ? 1.5 : 2)
                     )
             )
@@ -121,7 +124,7 @@ struct BlockInventoryView: View {
                         .foregroundStyle(.black)
                         .frame(width: 22, height: 22)
                         .background(Circle().fill(.white))
-                        .overlay(Circle().stroke(Self.containerBorder, lineWidth: 1.5))
+                        .overlay(Circle().stroke(Self.slotBorder, lineWidth: 1.5))
                         .offset(x: 8, y: -8)
                 }
             }
