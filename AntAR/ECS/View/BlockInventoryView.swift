@@ -32,7 +32,9 @@ struct BlockInventoryView: View {
     private static let containerFill = Color(red: 247 / 255, green: 213 / 255, blue: 168 / 255)
     private static let containerBorder = Color(red: 201 / 255, green: 140 / 255, blue: 68 / 255)
     private static let slotBorder = Color(red: 0xF6 / 255, green: 0xB1 / 255, blue: 0x70 / 255)
-    private static let containerCornerRadius: CGFloat = 20
+    private static let selectedSlotBorder = Color(red: 0xC8 / 255, green: 0x81 / 255, blue: 0x3D / 255)
+    // 20 -> 14: too rounded, per reference.
+    private static let containerCornerRadius: CGFloat = 14
     private static let slotCornerRadius: CGFloat = 7
     // Fixed order: every non-black color first (in this fixed order), black always last — matches
     // the only 4 rectangle assets that currently exist.
@@ -84,7 +86,8 @@ struct BlockInventoryView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: Self.containerCornerRadius).stroke(
                         isReturnTargeted ? Color.yellow : Self.containerBorder,
-                        style: StrokeStyle(lineWidth: isReturnTargeted ? 3 : 2, dash: isReturnTargeted ? [8, 5] : [])
+                        // 2 -> 1.5: stroke was too thick, per reference.
+                        style: StrokeStyle(lineWidth: isReturnTargeted ? 3 : 1.5, dash: isReturnTargeted ? [8, 5] : [])
                     )
                 )
         )
@@ -111,7 +114,7 @@ struct BlockInventoryView: View {
             .overlay(
                 RoundedRectangle(cornerRadius: Self.slotCornerRadius)
                     .stroke(
-                        slot.representativeID == selectedBlockID ? Color.yellow : Self.slotBorder,
+                        slot.representativeID == selectedBlockID ? Self.selectedSlotBorder : Self.slotBorder,
                         lineWidth: slot.representativeID == selectedBlockID ? 4 : (slot.count == 0 ? 1.5 : 2)
                     )
             )

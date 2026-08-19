@@ -148,7 +148,7 @@ struct BoardHintBubbleView: View {
                         .offset(x: -70, y: 45)
 
                     Text(message)
-                        .font(.custom("Fredoka-SemiBold", size: 18))
+                        .font(.custom("Fredoka-SemiBold", size: 16))
                         .multilineTextAlignment(.leading) // Condong / rata kiri
                         .foregroundColor(.white)
                         .frame(maxWidth: 230, alignment: .leading) // Rapat kiri dalam frame
@@ -172,6 +172,9 @@ struct BoardHintBubbleView: View {
 
                 Spacer(minLength: 8)
             }
+            // Same fix as UFOTravelDialogueView/SensorCountHintView — makes the leading-vs-trailing
+            // Spacer split explicit instead of relying on both Spacers dividing leftover width.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, 20)
             .padding(.bottom, 180)
         }

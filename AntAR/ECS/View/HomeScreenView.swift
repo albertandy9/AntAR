@@ -327,9 +327,10 @@ private struct WelcomePage: View {
     let onStart: () -> Void
 
     var body: some View {
-        Text("AntAR")
-            .font(.system(size: 34, weight: .heavy))
-            .foregroundStyle(AntARTheme.bronzeDark)
+        Image("Logo antar")
+            .resizable()
+            .scaledToFit()
+            .frame(height: 60)
 
         Text("Game edukasi seru untuk anak belajar cara kerja sinar inframerah")
             .font(.body)

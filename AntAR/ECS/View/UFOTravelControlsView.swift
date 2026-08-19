@@ -34,6 +34,7 @@ struct UFOTravelControlsView: View {
                     onPress: { viewModel.setGasPedalPressed(true) },
                     onRelease: { viewModel.setGasPedalPressed(false) }
                 )
+                .offset(y: -8)
                 .opacity(viewModel.isInspectingUFO ? 0 : 1)
                 .accessibilityHidden(viewModel.isInspectingUFO)
             }
@@ -52,16 +53,16 @@ struct UFOSensorInspectionView: View {
                 .font(.caption)
                 .foregroundStyle(.cyan)
 
-            Text("SENSOR IR DI BAWAH UFO")
-                .font(.caption2.monospaced().weight(.bold))
-                .foregroundStyle(.white.opacity(0.72))
-
-            if viewModel.isSensorUpgradeRecommended {
-                Text("TAMBAHKAN SENSOR UNTUK MENINGKATKAN STABILITAS")
-                    .font(.caption2.monospaced().weight(.bold))
-                    .foregroundStyle(.yellow)
-                    .multilineTextAlignment(.center)
-            }
+//            Text("SENSOR IR DI BAWAH UFO")
+//                .font(.caption2.monospaced().weight(.bold))
+//                .foregroundStyle(.white.opacity(0.72))
+//
+//            if viewModel.isSensorUpgradeRecommended {
+//                Text("TAMBAHKAN SENSOR UNTUK MENINGKATKAN STABILITAS")
+//                    .font(.caption2.monospaced().weight(.bold))
+//                    .foregroundStyle(.yellow)
+//                    .multilineTextAlignment(.center)
+//            }
 
             HStack(spacing: 10) {
                 sensorButton(systemImage: "minus") {
@@ -136,7 +137,16 @@ private struct GasPedal: View {
     private static let borderColor = Color(red: 0xF4 / 255, green: 0x9E / 255, blue: 0x4C / 255)
     // Warna untuk efek bayangan 3D di bagian bawah tombol (orange gelap)
     private static let shadowColor = Color(red: 207 / 255, green: 120 / 255, blue: 51 / 255)
+    // #593818 — warna icon "pedal.accelerator.fill" sesuai referensi.
+    private static let iconColor = Color(red: 0x59 / 255, green: 0x38 / 255, blue: 0x18 / 255)
     private static let borderWidth: CGFloat = 3.5 // Dipertebal sedikit agar mirip gambar
+    // Arc "sedang ditahan" yang berputar di atas border selama ditekan — lingkaran penuh yang
+    // berputar di atas dirinya sendiri tidak akan kelihatan bergerak sama sekali, makanya ini
+    // sebuah trimmed arc (bukan full circle) yang diputar terus via .repeatForever.
+    private static let spinnerWidth: CGFloat = 4.5
+    private static let spinnerTrim: CGFloat = 0.24
+
+    @State private var spinnerRotation: Double = 0
 
     var body: some View {
         ZStack {
@@ -153,14 +163,39 @@ private struct GasPedal: View {
                     .frame(width: Self.diameter, height: Self.diameter)
                     .overlay(Circle().stroke(Self.borderColor, lineWidth: Self.borderWidth))
 
-                Text("PLAY")
-                    .font(.system(size: 16, weight: .heavy))
-                    .foregroundStyle(Self.borderColor)
+                // Only visible while held — an arc circling the border to signal "keep holding,"
+                // not a static decoration.
+                if isPressed {
+                    Circle()
+                        .trim(from: 0, to: Self.spinnerTrim)
+                        .stroke(Color.white, style: StrokeStyle(lineWidth: Self.spinnerWidth, lineCap: .round))
+                        .frame(width: Self.diameter, height: Self.diameter)
+                        .rotationEffect(.degrees(spinnerRotation))
+                }
+
+                Image(systemName: "pedal.accelerator.fill")
+                    .font(.system(size: 34, weight: .bold))
+                    .foregroundStyle(Self.iconColor)
             }
             .offset(y: isPressed ? 4 : 0) // Menekan tombol ke bawah menutupi bayangan
         }
         .scaleEffect(isPressed ? 0.94 : 1)
         .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+        // Always visible now, not just while isPressed — a persistent instruction label ("press
+        // and hold this") reads better shown up front than only appearing once you're already
+        // mid-press, which is when you no longer need to be told to press it.
+//        .overlay(alignment: .bottom) {
+//            Text("Tekan dan tahan")
+//                .font(.system(size: 10, weight: .semibold))
+//                .foregroundStyle(.white)
+//                .padding(.horizontal, 8)
+//                .padding(.vertical, 3)
+//                .background(Color.black.opacity(0.6), in: Capsule())
+//                .fixedSize()
+//                // 26 -> 10: sat too low, dropping below the IR panel's bottom edge instead of
+//                // lining up level with it.
+//                .offset(y: 10)
+//        }
         .contentShape(Circle())
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -172,13 +207,30 @@ private struct GasPedal: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Pedal gas")
         .accessibilityValue(isPressed ? "Ditekan" : "Dilepas")
+        .onChange(of: isPressed) { _, pressed in
+            if pressed {
+                // Reset to 0 outside the animation block, then animate to 360 inside one — the
+                // standard SwiftUI trick for restarting a .repeatForever loop from the start each
+                // time a press begins, instead of resuming wherever the last loop left off.
+                spinnerRotation = 0
+                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) {
+                    spinnerRotation = 360
+                }
+            } else {
+                withAnimation(.linear(duration: 0.15)) {
+                    spinnerRotation = 0
+                }
+            }
+        }
     }
 }
 
 private struct IRIntensityPanel: View {
     @Bindable var viewModel: ARExperienceViewModel
 
-    private static let panelWidth: CGFloat = 278
+    // 278 -> 300: at the correct Figma sizes (title 149px wide, pill text 11px not 14px), 278 was
+    // still just short of fitting both without the title having to shrink/truncate.
+    private static let panelWidth: CGFloat = 300
     private static let horizontalPadding: CGFloat = 18
     private static let minimumBarSpacing: CGFloat = 4
     private static let preferredBarSpacing: CGFloat = 16
@@ -189,20 +241,17 @@ private struct IRIntensityPanel: View {
     private static let cardShadow = Color(red: 56 / 255, green: 29 / 255, blue: 12 / 255) // Bayangan bawah
     private static let titleColor = Color(red: 253 / 255, green: 242 / 255, blue: 232 / 255)
 
-	private var routeStatus: (text: String, textColor: Color, bgColor: Color) {
+	// Solid cream pill for both states now, not a translucent tint of the status color — only the
+	// text color still changes with status. Same cream as the rest of the app's accent chips.
+	private static let statusPillFill = Color(red: 0xFD / 255, green: 0xEC / 255, blue: 0xDB / 255)
+
+	private var routeStatus: (text: String, textColor: Color) {
 		if viewModel.isIRLineDetected {
-			return (
-				"Garis Terdeteksi",
-				.green,
-				.green.opacity(0.18)
-			)
+			return ("Garis Terdeteksi", .green)
 		}
 
-		return (
-			"Garis Tidak Terdeteksi",
-			Color(red: 249 / 255, green: 62 / 255, blue: 62 / 255),
-			Color(red: 249 / 255, green: 62 / 255, blue: 62 / 255).opacity(0.18)
-		)
+		// #FF383C — Figma "Colors/Red" spec.
+		return ("Garis Tidak Terdeteksi", Color(red: 0xFF / 255, green: 0x38 / 255, blue: 0x3C / 255))
 	}
     private var sensorCount: Int {
         max(viewModel.irLineActivations.count, 1)
@@ -230,25 +279,30 @@ private struct IRIntensityPanel: View {
     var body: some View {
         VStack(spacing: 20) {
             HStack {
+                // Figma "Bar Aktivasi Infrared" spec: Fredoka SemiBold 14px, box 149x18 — fits
+                // fine at its natural size now that the panel is wide enough and the pill (below)
+                // is the correct, much smaller 11px instead of 14px, so neither needs to shrink
+                // or get cut off.
                 Text("Bar Aktivasi Infrared")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.custom("Fredoka SemiBold/sm", size: 14))
                     .foregroundStyle(Self.titleColor)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.65)
 
                 Spacer(minLength: 12)
 
+				// Figma "IR Ac" status chip spec: Fredoka SemiBold 11px (not 14 — that's what was
+				// crowding the title out), text box 87x14, red = #FF383C for the "not detected"
+				// state.
 				Text(routeStatus.text)
-					.font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.custom("Fredoka-SemiBold", size: 11))
 					.foregroundStyle(routeStatus.textColor)
-					.padding(.horizontal, 10)
+					.padding(.horizontal, 8)
 					.padding(.vertical, 4)
 					.background(
 						Capsule()
-							.fill(routeStatus.bgColor)
+							.fill(Self.statusPillFill)
 					)
-					.lineLimit(1)
-					.minimumScaleFactor(0.65)
+					.fixedSize()
 			}
 
             HStack(spacing: barSpacing) {
@@ -312,5 +366,35 @@ private struct IRIntensityBar: View {
         Color.black.ignoresSafeArea()
         UFOTravelControlsView(viewModel: ARExperienceViewModel(), onInspectUFO: {})
             .padding()
+    }
+}
+
+/// Standalone, actually-tappable preview of just the pedal and its spin animation — the
+/// UFOTravelControlsView preview above wires the pedal to a bare ARExperienceViewModel(), and
+/// setGasPedalPressed's "no blocks placed yet" gate means isPressed never actually flips there
+/// (pressing just no-ops or shows the board hint). This one uses local @State instead, so
+/// press-and-hold in the canvas really does toggle isPressed and drives the spinner.
+#Preview("Gas Pedal - Interactive") {
+    GasPedalPreviewHarness()
+}
+
+private struct GasPedalPreviewHarness: View {
+    @State private var isPressed = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 16) {
+                GasPedal(
+                    isPressed: isPressed,
+                    isEnabled: true,
+                    onPress: { isPressed = true },
+                    onRelease: { isPressed = false }
+                )
+                Text(isPressed ? "" : "Tekan dan tahan")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+        }
     }
 }
