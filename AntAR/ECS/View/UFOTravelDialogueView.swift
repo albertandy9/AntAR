@@ -178,7 +178,7 @@ struct UFOTravelDialogueView: View {
     }
 
     private func advance() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        ExperienceFeedback.shared.impact(.light)
         if messageIndex + 1 < dialogue.messages.count {
             withAnimation(.easeInOut(duration: 0.18)) {
                 messageIndex += 1
@@ -189,7 +189,7 @@ struct UFOTravelDialogueView: View {
     }
 }
 
-private struct LeadingTailBubbleShape: Shape {
+struct LeadingTailBubbleShape: Shape {
     private let tailWidth: CGFloat = 16
     private let tailHeight: CGFloat = 20
     private let cornerRadius: CGFloat = 18

@@ -36,7 +36,9 @@ final class ARExperienceViewModel {
     private(set) var completionCardScreenPosition: CGPoint?
     private(set) var completionCardScale: CGFloat = 1
     private(set) var isAwaitingSensorInspectionTap = false
+    private(set) var isShowingSensorCountHint = false
     var isShowingBoardHint = false
+    private(set) var boardHintMessage = "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!"
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
     private(set) var ufoDirection: CGVector?
@@ -110,6 +112,7 @@ final class ARExperienceViewModel {
     @ObservationIgnored private var hasShownFirstPathDialogue = false
     @ObservationIgnored private var hasShownSensorAdjustmentDialogue = false
     @ObservationIgnored private var hasShownSensorCalibratedDialogue = false
+    @ObservationIgnored private var hasPlayedSurfaceDetectedFeedback = false
 
     private var masterScene: Entity?
 
@@ -126,6 +129,8 @@ final class ARExperienceViewModel {
 
     init() {
         AntARECSRegistry.register()
+        ExperienceFeedback.shared.setUFOMoving(false)
+        ExperienceFeedback.shared.startBackgroundMusic()
 
         experienceRoot.name = "ARSceneRoot"
         scannedTable.name = "ScannedSurface"
@@ -170,6 +175,7 @@ final class ARExperienceViewModel {
                     self?.requestUFOTravel()
                 } else if state == .completed {
                     self?.releaseGasPedal()
+                    ExperienceFeedback.shared.setUFOMoving(false)
                     self?.presentCompletedExperience()
                     self?.enqueueTravelDialogue(.arrivedHome)
                 }
@@ -195,9 +201,9 @@ final class ARExperienceViewModel {
             case .rigid: .rigid
             }
 
-            let generator = UIImpactFeedbackGenerator(style: uiKitStyle)
-            generator.prepare()
-            generator.impactOccurred(intensity: CGFloat(intensity))
+            Task { @MainActor in
+                ExperienceFeedback.shared.impact(uiKitStyle, intensity: CGFloat(intensity))
+            }
         }
 
         lostAntGreetObserver = NotificationCenter.default.addObserver(
@@ -209,7 +215,9 @@ final class ARExperienceViewModel {
                   let phase = LostAntGreetPhase(rawValue: rawValue) else {
                 return
             }
-            self?.lostAntGreetPhase = phase
+            Task { @MainActor [weak self] in
+                self?.lostAntGreetPhase = phase
+            }
         }
     }
 
@@ -272,6 +280,10 @@ final class ARExperienceViewModel {
         if isTableReadyToPlace != isReady {
             isTableReadyToPlace = isReady
         }
+        if isReady, !hasPlayedSurfaceDetectedFeedback {
+            hasPlayedSurfaceDetectedFeedback = true
+            ExperienceFeedback.shared.success()
+        }
     }
 
 
@@ -308,7 +320,6 @@ final class ARExperienceViewModel {
         anchor.setOrientation(simd_quatf(from: SIMD3<Float>(1, 0, 0), to: right), relativeTo: nil)
 
         placementAnchor = anchor
-
 
         Task { await loadMasterSceneIfNeeded() }
 
@@ -493,6 +504,7 @@ final class ARExperienceViewModel {
 
         let start = ufo.position(relativeTo: nil)
         let end = target.position(relativeTo: nil)
+        ExperienceFeedback.shared.play(.ufoDescends)
         ufo.components.set(UFODescendComponent(startPosition: start, targetPosition: end))
         hasTappedUFO = true
     }
@@ -533,7 +545,12 @@ final class ARExperienceViewModel {
     func beginAntBoardingIfNeeded() {
         guard !hasStartedAntBoarding else { return }
         hasStartedAntBoarding = true
+        ExperienceFeedback.shared.play(.antBoardsUFO)
         Task { await beginAntBoarding() }
+    }
+
+    func playInitialAntTalkingSound() {
+        ExperienceFeedback.shared.play(.antTalking)
     }
 
     private func beginAntsLeaveFormationIfNeeded() {
@@ -600,6 +617,7 @@ final class ARExperienceViewModel {
     // ant-dialogue lines. See LostAntGreetComponent.isDialogueDismissed's header comment for why
     // LostAntGreetSystem needs this signal before it lets the ant shrink back down.
     func confirmAntDialogueDismissed() {
+        ExperienceFeedback.shared.stop(.antTalking)
         guard let masterScene, let ant = masterScene.findEntity(named: "ant_noanthena"),
               var greet = ant.components[LostAntGreetComponent.self] else {
             return
@@ -642,6 +660,7 @@ final class ARExperienceViewModel {
         ufo.components.set(OpacityComponent(opacity: 1))
         let start = ufo.position(relativeTo: nil)
         let end = target.position(relativeTo: nil)
+        ExperienceFeedback.shared.play(.ufoAscends)
         ufo.components.set(UFOAscendComponent(startPosition: start, targetPosition: end))
 
         // Spread environment activation across the existing ascend animation. This keeps grass,
@@ -744,6 +763,8 @@ final class ARExperienceViewModel {
 
             collectedBlockIDs.insert(entry.name)
             collectedBlocks.append(CollectedBlock(name: entry.name, uiColor: entry.color))
+            ExperienceFeedback.shared.play(.blockPickedUp)
+            ExperienceFeedback.shared.impact(.medium)
             if collectedBlockIDs.count >= BlockLayoutConfig.requiredCount,
                !hasReportedRequiredBlocksCollected {
                 hasReportedRequiredBlocksCollected = true
@@ -789,6 +810,8 @@ final class ARExperienceViewModel {
         block.scale = .zero
         block.components.set(OpacityComponent(opacity: 1))
         block.isEnabled = true
+        ExperienceFeedback.shared.play(.blockPlaced)
+        ExperienceFeedback.shared.impact(.medium)
         updatePlacementGuide()
         if masterScene.findEntity(named: AntARSceneNames.travelUFO)?
             .components[UFOPathFollowerComponent.self]?.state == .stalled {
@@ -869,6 +892,8 @@ final class ARExperienceViewModel {
         if !collectedBlocks.contains(where: { $0.id == blockID }) {
             collectedBlocks.append(CollectedBlock(name: entry.name, uiColor: entry.color))
         }
+        ExperienceFeedback.shared.play(.blockPickedUp)
+        ExperienceFeedback.shared.impact(.medium)
         updatePlacementGuide()
 
         // Editing a live route asks ECS to sample it again without changing the UFO's transform
@@ -887,8 +912,27 @@ final class ARExperienceViewModel {
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
         if pressed, !hasPlacedBlocks {
-            isShowingBoardHint = true
+            presentBoardHint(
+                collectedBlocks.isEmpty
+                    ? "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!"
+                    : "Letakkan balok di atas permukaan untuk membuat jalur bagi UFO!"
+            )
             return
+        }
+
+        if pressed,
+           let follower = masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
+            .components[UFOPathFollowerComponent.self],
+           follower.state == .stalled,
+           follower.stallReason == .noPath {
+            presentBoardHint(
+                "Lanjut letakkan balok di atas permukaan untuk membuat jalur bagi UFO!"
+            )
+            return
+        }
+
+        if !pressed {
+            ExperienceFeedback.shared.setUFOMoving(false)
         }
 
         guard canUseGasPedal,
@@ -908,6 +952,14 @@ final class ARExperienceViewModel {
         isShowingBoardHint = false
     }
 
+    private func presentBoardHint(_ message: String) {
+        boardHintMessage = message
+        guard !isShowingBoardHint else { return }
+        ExperienceFeedback.shared.play(.ufoCannotMove)
+        ExperienceFeedback.shared.failure()
+        isShowingBoardHint = true
+    }
+
     func requestUFOReset() {
         guard isTravelUFOReady,
               gameState.supportsRouteBuilding,
@@ -918,6 +970,7 @@ final class ARExperienceViewModel {
         control.requestReset()
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+        ExperienceFeedback.shared.setUFOMoving(false)
         ufoStallReason = nil
         activeTravelDialogue = nil
         pendingTravelDialogues.removeAll()
@@ -936,6 +989,7 @@ final class ARExperienceViewModel {
         control.requestRouteReevaluation()
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+        ExperienceFeedback.shared.setUFOMoving(false)
         ufoStallReason = nil
     }
 
@@ -951,6 +1005,7 @@ final class ARExperienceViewModel {
         }
 
         releaseGasPedal()
+        ExperienceFeedback.shared.play(.ufoTurn)
         ufo.components.set(BillboardComponent())
         inspection.present()
         ufo.components[UFOInspectionComponent.self] = inspection
@@ -958,11 +1013,17 @@ final class ARExperienceViewModel {
         ufoTapScreenPosition = nil
         isInspectingUFO = true
         isFinishingUFOInspection = false
+        isShowingSensorCountHint = true
+    }
+
+    func dismissSensorCountHint() {
+        isShowingSensorCountHint = false
     }
 
     /// Returns the UFO to the exact orientation captured before inspection. Normal travel
     /// controls remain hidden until the ECS transition has had time to finish.
     func finishUFOInspection() {
+        isShowingSensorCountHint = false
         guard isInspectingUFO,
               !isFinishingUFOInspection,
               let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
@@ -970,6 +1031,7 @@ final class ARExperienceViewModel {
             return
         }
 
+        ExperienceFeedback.shared.play(.ufoTurn)
         inspection.dismiss()
         ufo.components[UFOInspectionComponent.self] = inspection
         isFinishingUFOInspection = true
@@ -1045,6 +1107,12 @@ final class ARExperienceViewModel {
             rightMotorPower = follower.rightMotorPower
         }
         if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
+        ExperienceFeedback.shared.setUFOMoving(
+            follower.state == .following
+                && follower.stallReason == nil
+                && nextGasState
+                && max(abs(follower.leftMotorPower), abs(follower.rightMotorPower)) > 0.01
+        )
         updateTravelDialogue(for: follower.stallReason)
         presentFirstPathDialogueIfNeeded(for: follower)
         presentSensorAdjustmentDialogueIfNeeded(for: follower)
@@ -1115,6 +1183,7 @@ final class ARExperienceViewModel {
 
         if dialogue == .arrivedHome {
             isCompletionCardPresented = true
+            ExperienceFeedback.shared.play(.levelCompleted)
         }
 
         if activeTravelDialogue == nil, shouldPromptSensorInspectionWhenDialoguesFinish {
@@ -1188,9 +1257,13 @@ final class ARExperienceViewModel {
         switch reason {
         case .noPath:
             releaseGasPedal()
+            ExperienceFeedback.shared.play(.ufoCannotMove)
+            ExperienceFeedback.shared.failure()
             enqueueTravelDialogue(.noPath)
         case .lightBlockReflectsIR:
             releaseGasPedal()
+            ExperienceFeedback.shared.play(.ufoCannotMove)
+            ExperienceFeedback.shared.failure()
             enqueueTravelDialogue(.lightBlock)
         case nil:
             break
@@ -1215,6 +1288,7 @@ final class ARExperienceViewModel {
         control.setThrottle(0)
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
+        ExperienceFeedback.shared.setUFOMoving(false)
     }
 
     /// Restarts only the learning loop. The existing placement anchor is preserved, while the
@@ -1229,6 +1303,7 @@ final class ARExperienceViewModel {
         pendingTravelDialogues.removeAll()
         shouldPromptSensorInspectionWhenDialoguesFinish = false
         isAwaitingSensorInspectionTap = false
+        isShowingSensorCountHint = false
         isShowingBoardHint = false
         isInspectingUFO = false
         isFinishingUFOInspection = false
@@ -1250,6 +1325,7 @@ final class ARExperienceViewModel {
         hasShownFirstPathDialogue = false
         hasShownSensorAdjustmentDialogue = false
         hasShownSensorCalibratedDialogue = false
+        ExperienceFeedback.shared.setUFOMoving(false)
 
         sensorCount = IRSensorLayout.minimumCount
         irLineActivations = Array(repeating: 0, count: sensorCount)

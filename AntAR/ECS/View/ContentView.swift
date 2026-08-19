@@ -104,7 +104,8 @@ struct ContentView: View {
                     lostAntGreetPhase: viewModel.lostAntGreetPhase,
                     isCoachingOverlayActive: viewModel.isCoachingOverlayActive,
                     isSurfaceTooSmall: viewModel.hasFoundUndersizedTable,
-                    surfaceDistanceStatus: viewModel.surfaceDistanceStatus
+                    surfaceDistanceStatus: viewModel.surfaceDistanceStatus,
+                    isGasPedalPressed: viewModel.isGasPedalPressed
                 )
                 .padding(.top, 24)
 
@@ -147,14 +148,13 @@ struct ContentView: View {
                 hasTappedUFO: viewModel.hasTappedUFO,
                 isPresentingDialogue: $isStoryDialoguePresented,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
-                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
+                onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() },
+                onAntDialogueStarted: { viewModel.playInitialAntTalkingSound() }
             )
 
             if viewModel.isShowingBoardHint {
                 BoardHintBubbleView(
-                    message: viewModel.collectedBlocks.isEmpty
-                        ? "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!"
-                        : "Letakkan balok di atas permukaan untuk membuat jalur bagi UFO!",
+                    message: viewModel.boardHintMessage,
                     onDismiss: viewModel.dismissBoardHint
                 )
             }
@@ -178,6 +178,10 @@ struct ContentView: View {
                 .padding(.top, 72)
                 .padding(.trailing, 16)
                 .ignoresSafeArea()
+            }
+
+            if viewModel.isShowingSensorCountHint {
+                SensorCountHintView(onDismiss: viewModel.dismissSensorCountHint)
             }
 
             if viewModel.isCompletionCardPresented,

@@ -189,20 +189,21 @@ private struct IRIntensityPanel: View {
     private static let cardShadow = Color(red: 56 / 255, green: 29 / 255, blue: 12 / 255) // Bayangan bawah
     private static let titleColor = Color(red: 253 / 255, green: 242 / 255, blue: 232 / 255)
 
-    private var routeStatus: (text: String, color: Color) {
-        switch viewModel.ufoStallReason {
-        case .noPath:
-            return ("NO BLOCKS", .orange)
-        case .lightBlockReflectsIR:
-            return ("BLOCK IS LIGHT", .yellow)
-        case nil where viewModel.isIRLineDetected:
-            return ("LINE DETECTED", .green)
-        case nil:
-            // Warna merah cerah disesuaikan persis dengan gambar ("Not Detected")
-            return ("Not Detected", Color(red: 249 / 255, green: 62 / 255, blue: 62 / 255))
-        }
-    }
+	private var routeStatus: (text: String, textColor: Color, bgColor: Color) {
+		if viewModel.isIRLineDetected {
+			return (
+				"Garis Terdeteksi",
+				.green,
+				.green.opacity(0.18)
+			)
+		}
 
+		return (
+			"Garis Tidak Terdeteksi",
+			Color(red: 249 / 255, green: 62 / 255, blue: 62 / 255),
+			Color(red: 249 / 255, green: 62 / 255, blue: 62 / 255).opacity(0.18)
+		)
+	}
     private var sensorCount: Int {
         max(viewModel.irLineActivations.count, 1)
     }
@@ -229,7 +230,7 @@ private struct IRIntensityPanel: View {
     var body: some View {
         VStack(spacing: 20) {
             HStack {
-                Text("Infrared Activation Bar")
+                Text("Bar Aktivasi Infrared")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Self.titleColor)
                     .lineLimit(1)
@@ -237,12 +238,18 @@ private struct IRIntensityPanel: View {
 
                 Spacer(minLength: 12)
 
-                Text(routeStatus.text)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(routeStatus.color)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-            }
+				Text(routeStatus.text)
+					.font(.system(size: 14, weight: .bold, design: .rounded))
+					.foregroundStyle(routeStatus.textColor)
+					.padding(.horizontal, 10)
+					.padding(.vertical, 4)
+					.background(
+						Capsule()
+							.fill(routeStatus.bgColor)
+					)
+					.lineLimit(1)
+					.minimumScaleFactor(0.65)
+			}
 
             HStack(spacing: barSpacing) {
                 ForEach(viewModel.irLineActivations.indices, id: \.self) { index in
