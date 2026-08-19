@@ -298,7 +298,7 @@ struct ContentView: View {
         draggedPlacedBlockID = nil
         draggedInventoryBlockID = nil
         isInventoryReturnTargeted = false
-        viewModel.setGasPedalPressed(false)
+        viewModel.forceGasPedalNeutral()
     }
 
     private func handleTap(at location: CGPoint) {

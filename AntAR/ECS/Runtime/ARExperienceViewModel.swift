@@ -911,7 +911,23 @@ final class ARExperienceViewModel {
 
     /// SwiftUI writes throttle intent only; the ECS systems own movement and motor state.
     func setGasPedalPressed(_ pressed: Bool) {
-        if pressed, !hasPlacedBlocks {
+        // Releasing must always win, even if a dialogue or state transition has made the pedal
+        // ineligible since the gesture began.
+        if !pressed {
+            releaseGasPedal()
+            return
+        }
+
+        // An already-active DragGesture may continue delivering `.onChanged(true)` after a
+        // dialogue overlay appears. Reject those stale events so the UFO cannot resume behind it.
+        guard activeTravelDialogue == nil,
+              !isShowingBoardHint,
+              !isCompletionCardPresented else {
+            releaseGasPedal()
+            return
+        }
+
+        if !hasPlacedBlocks {
             presentBoardHint(
                 collectedBlocks.isEmpty
                     ? "UFO belum bisa bergerak. Yuk cari balok di sekitar terlebih dahulu!"
@@ -920,8 +936,7 @@ final class ARExperienceViewModel {
             return
         }
 
-        if pressed,
-           let follower = masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
+        if let follower = masterScene?.findEntity(named: AntARSceneNames.travelUFO)?
             .components[UFOPathFollowerComponent.self],
            follower.state == .stalled,
            follower.stallReason == .noPath {
@@ -929,10 +944,6 @@ final class ARExperienceViewModel {
                 "Lanjut letakkan balok di atas permukaan untuk membuat jalur bagi UFO!"
             )
             return
-        }
-
-        if !pressed {
-            ExperienceFeedback.shared.setUFOMoving(false)
         }
 
         guard canUseGasPedal,
@@ -953,6 +964,7 @@ final class ARExperienceViewModel {
     }
 
     private func presentBoardHint(_ message: String) {
+        releaseGasPedal()
         boardHintMessage = message
         guard !isShowingBoardHint else { return }
         ExperienceFeedback.shared.play(.ufoCannotMove)
@@ -1235,7 +1247,12 @@ final class ARExperienceViewModel {
     private func presentSensorCalibratedDialogueIfNeeded(
         for follower: UFOPathFollowerComponent
     ) {
-        guard sensorLearningPhase == .calibrated,
+        guard let learning = masterScene?
+                .findEntity(named: AntARSceneNames.travelUFO)?
+                .components[SensorLearningComponent.self],
+              sensorLearningPhase == .calibrated,
+              learning.calibratedDriveDuration
+                >= SensorLearningComponent.calibratedDemonstrationDuration,
               !hasShownSensorCalibratedDialogue,
               follower.state == .following,
               !isInspectingUFO,
@@ -1276,6 +1293,10 @@ final class ARExperienceViewModel {
             return
         }
 
+        // Dialogue presentation owns the interaction until dismissed. Neutralize ECS throttle
+        // synchronously, before SwiftUI has to observe and render the overlay.
+        releaseGasPedal()
+
         if activeTravelDialogue == nil {
             activeTravelDialogue = dialogue
         } else {
@@ -1284,11 +1305,17 @@ final class ARExperienceViewModel {
     }
 
     private func releaseGasPedal() {
-        guard var control = gameDirector.components[UFOControlComponent.self] else { return }
-        control.setThrottle(0)
-        gameDirector.components[UFOControlComponent.self] = control
+        if var control = gameDirector.components[UFOControlComponent.self] {
+            control.setThrottle(0)
+            gameDirector.components[UFOControlComponent.self] = control
+        }
         isGasPedalPressed = false
         ExperienceFeedback.shared.setUFOMoving(false)
+    }
+
+    /// Cancels an in-flight UI gesture without consulting the current gameplay eligibility.
+    func forceGasPedalNeutral() {
+        releaseGasPedal()
     }
 
     /// Restarts only the learning loop. The existing placement anchor is preserved, while the

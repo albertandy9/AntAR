@@ -21,16 +21,22 @@ public enum SensorLearningPhase: String, Codable, Sendable {
 public struct SensorLearningComponent: Component, Codable, Equatable {
     public var phase: SensorLearningPhase
     public var baselineDriveDuration: Float
+    /// Cumulative time spent driving with the improved sensor array. This deliberately pauses
+    /// whenever the pedal is released or movement is interrupted, mirroring the baseline
+    /// instability demonstration instead of confirming calibration on the first rendered frame.
+    public var calibratedDriveDuration: Float
     /// Sensor count that produced the unstable demonstration. The lesson asks the learner to
     /// improve this configuration, rather than prescribing one globally correct number.
     public var demonstratedSensorCount: Int
 
     public init(
         sensorCount: Int = IRSensorLayout.minimumCount,
-        baselineDriveDuration: Float = 0
+        baselineDriveDuration: Float = 0,
+        calibratedDriveDuration: Float = 0
     ) {
         demonstratedSensorCount = Self.clampedSensorCount(sensorCount)
         self.baselineDriveDuration = max(baselineDriveDuration, 0)
+        self.calibratedDriveDuration = max(calibratedDriveDuration, 0)
         phase = .baseline
     }
 
@@ -53,10 +59,12 @@ public struct SensorLearningComponent: Component, Codable, Equatable {
         case .upgradeRecommended:
             if count > demonstratedSensorCount {
                 phase = .calibrated
+                calibratedDriveDuration = 0
             }
         case .calibrated:
             if count <= demonstratedSensorCount {
                 phase = .upgradeRecommended
+                calibratedDriveDuration = 0
             }
         }
     }
@@ -69,6 +77,8 @@ public struct SensorLearningComponent: Component, Codable, Equatable {
 
     /// Long enough to show the two-sensor oscillation, but short enough to keep the lesson moving.
     public static let baselineDemonstrationDuration: Float = 2.0
+    /// The improved setup must also be experienced before its success dialogue is shown.
+    public static let calibratedDemonstrationDuration: Float = 2.0
 
     private static func clampedSensorCount(_ sensorCount: Int) -> Int {
         min(max(sensorCount, IRSensorLayout.minimumCount), IRSensorLayout.maximumCount)

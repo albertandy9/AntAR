@@ -204,6 +204,13 @@ public struct UFOPathFollowingSystem: System {
                         ufo.components[SensorLearningComponent.self] = learning
                     }
                     ufo.components[SensorLearningComponent.self] = learning
+                } else if learning.phase == .calibrated,
+                          learning.calibratedDriveDuration
+                            < SensorLearningComponent.calibratedDemonstrationDuration {
+                    // This is cumulative pedal-held driving time: releasing the pedal pauses the
+                    // lesson, while pressing it again resumes from the accumulated duration.
+                    learning.calibratedDriveDuration += Float(context.deltaTime)
+                    ufo.components[SensorLearningComponent.self] = learning
                 }
 
                 // A tile is considered valid by its authored IR component. At the start of a
