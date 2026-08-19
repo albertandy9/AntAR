@@ -17,8 +17,14 @@ struct ContentView: View {
     @State private var isCameraAuthorized = false
     @State private var realityViewFrame: CGRect = .zero
     @State private var inventoryFrame: CGRect = .zero
+    @State private var pendingHeldBlockID: String?
     @State private var draggedPlacedBlockID: String?
+    @State private var placedBlockHoldTask: Task<Void, Never>?
+    @State private var isPlacedBlockHoldCancelled = false
     @State private var isInventoryReturnTargeted = false
+
+    private let placedBlockHoldDuration = Duration.milliseconds(350)
+    private let placedBlockHoldMovementTolerance: CGFloat = 18
 
     var body: some View {
         if hasStartedExperience {
@@ -44,7 +50,7 @@ struct ContentView: View {
                             }
                     )
                     .simultaneousGesture(
-                        DragGesture(minimumDistance: 12)
+                        DragGesture(minimumDistance: 0)
                             .onChanged(handlePlacedBlockDragChanged)
                             .onEnded(handlePlacedBlockDragEnded)
                     )
@@ -96,7 +102,8 @@ struct ContentView: View {
                     isTableReadyToPlace: viewModel.isTableReadyToPlace,
                     lostAntGreetPhase: viewModel.lostAntGreetPhase,
                     isCoachingOverlayActive: viewModel.isCoachingOverlayActive,
-                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable
+                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable,
+                    surfaceDistanceStatus: viewModel.surfaceDistanceStatus
                 )
                 .padding(.top, 24)
 
@@ -160,17 +167,38 @@ struct ContentView: View {
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
-        if draggedPlacedBlockID == nil {
+        if !isPlacedBlockHoldCancelled,
+           pendingHeldBlockID == nil,
+           draggedPlacedBlockID == nil {
             guard let arView,
                   let hitEntity = arView.entity(at: value.startLocation),
                   let blockID = viewModel.placedBlockID(containing: hitEntity) else {
                 return
             }
 
-            draggedPlacedBlockID = blockID
+            pendingHeldBlockID = blockID
+            placedBlockHoldTask?.cancel()
+            placedBlockHoldTask = Task { @MainActor in
+                try? await Task.sleep(for: placedBlockHoldDuration)
+                guard !Task.isCancelled, pendingHeldBlockID == blockID else { return }
+
+                pendingHeldBlockID = nil
+                draggedPlacedBlockID = blockID
+                viewModel.setPlacedBlockHoldActive(true, blockID: blockID)
+            }
         }
 
-        guard draggedPlacedBlockID != nil else { return }
+        if draggedPlacedBlockID == nil {
+            let movement = hypot(value.translation.width, value.translation.height)
+            if movement > placedBlockHoldMovementTolerance {
+                placedBlockHoldTask?.cancel()
+                placedBlockHoldTask = nil
+                pendingHeldBlockID = nil
+                isPlacedBlockHoldCancelled = true
+            }
+            return
+        }
+
         let globalLocation = CGPoint(
             x: realityViewFrame.minX + value.location.x,
             y: realityViewFrame.minY + value.location.y
@@ -181,6 +209,11 @@ struct ContentView: View {
     }
 
     private func handlePlacedBlockDragEnded(_ value: DragGesture.Value) {
+        placedBlockHoldTask?.cancel()
+        placedBlockHoldTask = nil
+        pendingHeldBlockID = nil
+        isPlacedBlockHoldCancelled = false
+
         guard let blockID = draggedPlacedBlockID else {
             isInventoryReturnTargeted = false
             return
@@ -194,6 +227,7 @@ struct ContentView: View {
             .insetBy(dx: -24, dy: -24)
             .contains(globalLocation)
 
+        viewModel.setPlacedBlockHoldActive(false, blockID: blockID)
         if shouldReturn {
             viewModel.returnPlacedBlockToInventory(blockID: blockID)
         }
@@ -215,10 +249,7 @@ struct ContentView: View {
         if viewModel.gameState.supportsRouteBuilding {
             if let tappedEntity = arView.entity(at: location) {
                 if viewModel.handleTravelUFOTapped(tappedEntity) { return }
-                if let blockID = viewModel.placedBlockID(containing: tappedEntity) {
-                    viewModel.togglePlacedBlockSelection(blockID: blockID)
-                    return
-                }
+                if viewModel.placedBlockID(containing: tappedEntity) != nil { return }
                 viewModel.handleBlockTapped(tappedEntity)
             }
             return

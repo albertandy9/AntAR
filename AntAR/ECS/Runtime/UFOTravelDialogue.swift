@@ -40,7 +40,7 @@ enum UFOTravelDialogue: String, Equatable, Sendable {
             [
                 "Sepertinya UFO tidak bisa jalan...",
                 "Ini karena cahaya inframerah dipantulkan oleh balok berwarna terang.",
-                "Ketuk balok terang, lalu tarik kembali ke inventori. Ganti dengan balok berwarna gelap."
+                "Tekan dan tahan balok terang, lalu tarik kembali ke inventori. Ganti dengan balok berwarna gelap."
             ]
         case .sensorAdjustment:
             [

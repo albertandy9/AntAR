@@ -12,6 +12,7 @@ struct GameOverlayView: View {
     let lostAntGreetPhase: LostAntGreetPhase?
     let isCoachingOverlayActive: Bool
     let isSurfaceTooSmall: Bool
+    let surfaceDistanceStatus: SurfaceDistanceStatus
 
     var body: some View {
         switch state {
@@ -19,7 +20,11 @@ struct GameOverlayView: View {
             // Hidden while ARCoachingOverlayView is up so the native "move device to find a
             // surface" UI and this custom reticle are sequenced, not both visible at once.
             if !isCoachingOverlayActive {
-                ScanningTableView(isReadyToPlace: isTableReadyToPlace, isSurfaceTooSmall: isSurfaceTooSmall)
+                ScanningTableView(
+                    isReadyToPlace: isTableReadyToPlace,
+                    isSurfaceTooSmall: isSurfaceTooSmall,
+                    surfaceDistanceStatus: surfaceDistanceStatus
+                )
             }
         case .antsLeaveFormation:
             CaptionPill(text: "Mundur sedikit, barisan semut mau lewat")

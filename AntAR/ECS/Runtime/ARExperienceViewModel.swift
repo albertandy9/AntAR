@@ -18,6 +18,7 @@ final class ARExperienceViewModel {
     var isTableReadyToPlace = false
     var isCoachingOverlayActive = true
     private(set) var hasFoundUndersizedTable = false
+    private(set) var surfaceDistanceStatus: SurfaceDistanceStatus = .unavailable
     var sensorCount = 2
     var irLineActivations: [Float] = Array(repeating: 0, count: 2)
     var isIRLineDetected = false
@@ -51,8 +52,6 @@ final class ARExperienceViewModel {
         repeating: nil,
         count: BlockPlacementConfig.dropSlotNames.count
     )
-    private(set) var selectedPlacedBlockID: String?
-
     var hasPlacedBlocks: Bool {
         placedBlockIDsBySlot.contains { $0 != nil }
     }
@@ -72,7 +71,11 @@ final class ARExperienceViewModel {
     // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its transform
     // to ray-plane-intersect a 2D tap into a 3D table point (ContentView.intersect(ray:withPlane:)).
     let scannedTable = AnchorEntity(
-        .plane(.horizontal, classification: .table, minimumBounds: SIMD2<Float>(repeating: 0.25))
+        .plane(
+            .horizontal,
+            classification: .table,
+            minimumBounds: SurfaceAnchorRequirements.minimumBounds
+        )
     )
 
     // Same .table classification as scannedTable, but a much smaller minimumBounds — used only to
@@ -255,18 +258,38 @@ final class ARExperienceViewModel {
 
 
     func refreshSurfaceReadiness() {
-        guard !isTableReadyToPlace else { return }
-        isTableReadyToPlace = scannedTable.components[SurfaceAnchorComponent.self]?.isLocked ?? false
+        guard !hasPlacedAnchor else { return }
+
+        let isSurfaceLocked = scannedTable.components[SurfaceAnchorComponent.self]?.isLocked ?? false
+        let distanceStatus = currentSurfaceDistanceStatus()
+        if surfaceDistanceStatus != distanceStatus {
+            surfaceDistanceStatus = distanceStatus
+        }
+
+        let isReady = isSurfaceLocked && distanceStatus == .valid
+        if isTableReadyToPlace != isReady {
+            isTableReadyToPlace = isReady
+        }
     }
 
 
     func refreshUndersizedTableDetected() {
-        guard !hasFoundUndersizedTable else { return }
-        hasFoundUndersizedTable = looselySizedTable.isAnchored
+        guard !hasPlacedAnchor else { return }
+        let isOnlySmallSurfaceAvailable = looselySizedTable.isAnchored && !scannedTable.isAnchored
+        if hasFoundUndersizedTable != isOnlySmallSurfaceAvailable {
+            hasFoundUndersizedTable = isOnlySmallSurfaceAvailable
+        }
     }
 
     func confirmPlacement(at worldPoint: SIMD3<Float>) {
-        guard isTableReadyToPlace, !hasPlacedAnchor else { return }
+        let distanceStatus = currentSurfaceDistanceStatus()
+        surfaceDistanceStatus = distanceStatus
+        guard isTableReadyToPlace,
+              distanceStatus == .valid,
+              !hasPlacedAnchor else {
+            isTableReadyToPlace = false
+            return
+        }
         hasPlacedAnchor = true
 
         let anchor = Entity()
@@ -289,6 +312,24 @@ final class ARExperienceViewModel {
 
 
         report(.surfaceLocked)
+    }
+
+    private func currentSurfaceDistanceStatus() -> SurfaceDistanceStatus {
+        guard scannedTable.isAnchored, cameraAnchor.isAnchored else { return .unavailable }
+
+        // Horizontal planes are gravity-aligned, so the world-space Y difference is the true
+        // perpendicular phone-to-surface distance even when the plane center is off-screen.
+        let cameraY = cameraAnchor.position(relativeTo: nil).y
+        let surfaceY = scannedTable.position(relativeTo: nil).y
+        let distance = abs(cameraY - surfaceY)
+
+        if distance < SurfaceAnchorRequirements.validCameraDistance.lowerBound {
+            return .tooClose
+        }
+        if distance > SurfaceAnchorRequirements.validCameraDistance.upperBound {
+            return .tooFar
+        }
+        return .valid
     }
 
 
@@ -756,28 +797,14 @@ final class ARExperienceViewModel {
         return nil
     }
 
-    /// Gives a placed block a persistent visual selection before the learner drags it back.
-    /// Selecting a different block restores the previous one; tapping the same block toggles it.
-    func togglePlacedBlockSelection(blockID: String) {
+    /// Visual acknowledgement after the placed-block hold gesture has completed. A normal tap
+    /// does not change appearance, teaching the learner to press, hold, and then drag.
+    func setPlacedBlockHoldActive(_ active: Bool, blockID: String) {
         guard placedBlockIDsBySlot.contains(where: { $0 == blockID }),
-              let masterScene,
-              let block = masterScene.findEntity(named: blockID) else {
+              let block = masterScene?.findEntity(named: blockID) else {
             return
         }
-
-        if let selectedPlacedBlockID,
-           selectedPlacedBlockID != blockID,
-           let previousBlock = masterScene.findEntity(named: selectedPlacedBlockID) {
-            previousBlock.components.set(OpacityComponent(opacity: 1))
-        }
-
-        if selectedPlacedBlockID == blockID {
-            self.selectedPlacedBlockID = nil
-            block.components.set(OpacityComponent(opacity: 1))
-        } else {
-            selectedPlacedBlockID = blockID
-            block.components.set(OpacityComponent(opacity: 0.52))
-        }
+        block.components.set(OpacityComponent(opacity: active ? 0.52 : 1))
     }
 
     /// Returns a placed scene entity to inventory without destroying it. Its authored entity,
@@ -792,9 +819,6 @@ final class ARExperienceViewModel {
         }
 
         placedBlockIDsBySlot[slotIndex] = nil
-        if selectedPlacedBlockID == blockID {
-            selectedPlacedBlockID = nil
-        }
         block.components.remove(PathTileComponent.self)
         block.components.remove(IRReflectanceComponent.self)
         block.components.set(OpacityComponent(opacity: 1))
