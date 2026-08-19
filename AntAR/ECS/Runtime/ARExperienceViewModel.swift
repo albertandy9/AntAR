@@ -897,8 +897,8 @@ final class ARExperienceViewModel {
         ufoStallReason = nil
     }
 
-    /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
-    /// this method only writes intent and releases throttle.
+    /// Requests the ECS inspection pose. Billboard is initialized only as a one-shot camera-facing
+    /// request; UFOInspectionSystem removes it after capturing the fixed underside orientation.
     func beginUFOInspection() {
         guard canControlUFO,
               !isInspectingUFO,
@@ -909,6 +909,7 @@ final class ARExperienceViewModel {
         }
 
         releaseGasPedal()
+        ufo.components.set(BillboardComponent())
         inspection.present()
         ufo.components[UFOInspectionComponent.self] = inspection
         isAwaitingSensorInspectionTap = false

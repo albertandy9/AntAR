@@ -20,15 +20,18 @@ public struct UFOInspectionComponent: Component, Codable {
     public var phase: UFOInspectionPhase
     public var progress: Float
     public var restOrientationVector: SIMD4<Float>?
+    public var inspectionOrientationVector: SIMD4<Float>?
 
     public init(
         phase: UFOInspectionPhase = .resting,
         progress: Float = 0,
-        restOrientationVector: SIMD4<Float>? = nil
+        restOrientationVector: SIMD4<Float>? = nil,
+        inspectionOrientationVector: SIMD4<Float>? = nil
     ) {
         self.phase = phase
         self.progress = min(max(progress, 0), 1)
         self.restOrientationVector = restOrientationVector
+        self.inspectionOrientationVector = inspectionOrientationVector
     }
 
     public var isActive: Bool {
@@ -40,6 +43,7 @@ public struct UFOInspectionComponent: Component, Codable {
         phase = .presenting
         progress = 0
         restOrientationVector = nil
+        inspectionOrientationVector = nil
     }
 
     public mutating func dismiss() {

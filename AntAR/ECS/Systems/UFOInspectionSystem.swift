@@ -7,7 +7,7 @@ import RealityKit
 import simd
 
 /// Pauses the travelling UFO and presents its underside toward the tracked camera for sensor
-/// configuration. The pose is animated in and restored exactly when inspection ends.
+/// configuration. Camera-facing orientation is sampled once, then frozen until inspection ends.
 public struct UFOInspectionSystem: System {
     public static let dependencies: [SystemDependency] = [
         .after(UFOPathFollowingSystem.self)
@@ -21,12 +21,10 @@ public struct UFOInspectionSystem: System {
     public init(scene: RealityKit.Scene) {}
 
     public func update(context: SceneUpdateContext) {
-        guard let camera = context.entities(
+        let camera = context.entities(
             matching: Self.cameraQuery,
             updatingSystemWhen: .rendering
-        ).first(where: { _ in true }) else {
-            return
-        }
+        ).first(where: { _ in true })
 
         let deltaTime = Float(context.deltaTime)
         for ufo in context.entities(matching: Self.ufoQuery, updatingSystemWhen: .rendering) {
@@ -46,10 +44,25 @@ public struct UFOInspectionSystem: System {
                 iz: restVector.z,
                 r: restVector.w
             )
-            let targetOrientation = inspectionOrientation(
-                for: ufo,
-                camera: camera,
-                restOrientation: restOrientation
+            if inspection.inspectionOrientationVector == nil {
+                guard let camera else { continue }
+                inspection.inspectionOrientationVector = inspectionOrientation(
+                    for: ufo,
+                    camera: camera,
+                    restOrientation: restOrientation
+                ).vector
+
+                // Billboard is deliberately transient. It marks the single camera-facing sample
+                // requested by SwiftUI, then is removed before inspection continues so walking
+                // around the table cannot keep rotating the UFO toward the phone.
+                ufo.components.remove(BillboardComponent.self)
+            }
+            guard let targetVector = inspection.inspectionOrientationVector else { continue }
+            let targetOrientation = simd_quatf(
+                ix: targetVector.x,
+                iy: targetVector.y,
+                iz: targetVector.z,
+                r: targetVector.w
             )
 
             switch inspection.phase {
@@ -70,7 +83,7 @@ public struct UFOInspectionSystem: System {
                     inspection.phase = .inspecting
                 }
             case .inspecting:
-                // Continue facing the tracked camera if the learner moves around the table.
+                // Hold the one-time camera-facing pose in world space while the learner moves.
                 ufo.setOrientation(targetOrientation, relativeTo: nil)
             case .dismissing:
                 inspection.progress = max(
@@ -87,6 +100,8 @@ public struct UFOInspectionSystem: System {
                     ufo.setOrientation(restOrientation, relativeTo: nil)
                     inspection.phase = .resting
                     inspection.restOrientationVector = nil
+                    inspection.inspectionOrientationVector = nil
+                    ufo.components.remove(BillboardComponent.self)
                 }
             }
 
