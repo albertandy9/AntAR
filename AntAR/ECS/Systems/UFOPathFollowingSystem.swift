@@ -141,12 +141,28 @@ public struct UFOPathFollowingSystem: System {
             }
 
             let decision = IRLineFollowingPolicy.decide(lineSignals: sensorArray.lineSignals)
+            let isSamplingReflectiveTile = zip(
+                sensorArray.isSamplingTile,
+                sensorArray.sampledReflectance
+            ).contains { sample in
+                sample.0 && sample.1 >= IRLineFollowingPolicy.digitalThreshold
+            }
             if let target = tiles.first(where: { $0.1.order == follower.currentTargetOrder }) {
                 // The ordered tile list already proves that a block exists in the next slot.
                 // Classify its authored IR material before applying the no-signal timeout;
                 // otherwise the short gap before the sensors physically overlap a bright block
                 // is incorrectly reported as an empty route.
                 if !target.2.isValidPath {
+                    stall(&follower, reason: .lightBlockReflectsIR)
+                    ufo.components[UFOPathFollowerComponent.self] = follower
+                    continue
+                }
+
+                // The expected ordered tile can still be dark while steering drift places the
+                // physical sensors over a different, bright tile. Zero line activation alone
+                // cannot distinguish that from open space; sampling presence plus reflected IR
+                // can, so surface the correct learning feedback before the no-line timeout.
+                if !decision.hasLine, isSamplingReflectiveTile {
                     stall(&follower, reason: .lightBlockReflectsIR)
                     ufo.components[UFOPathFollowerComponent.self] = follower
                     continue

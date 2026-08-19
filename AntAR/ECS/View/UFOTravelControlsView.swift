@@ -26,14 +26,16 @@ struct UFOTravelControlsView: View {
             HStack(alignment: .bottom, spacing: 12) {
                 IRIntensityPanel(viewModel: viewModel)
 
-                if !viewModel.isInspectingUFO {
-                    GasPedal(
-                        isPressed: viewModel.isGasPedalPressed,
-                        isEnabled: true,
-                        onPress: { viewModel.setGasPedalPressed(true) },
-                        onRelease: { viewModel.setGasPedalPressed(false) }
-                    )
-                }
+                // Keep the pedal's layout slot while the sensor panel is open. Removing it from
+                // the HStack changed the stack width and visibly shifted the IR panel sideways.
+                GasPedal(
+                    isPressed: viewModel.isGasPedalPressed,
+                    isEnabled: !viewModel.isInspectingUFO,
+                    onPress: { viewModel.setGasPedalPressed(true) },
+                    onRelease: { viewModel.setGasPedalPressed(false) }
+                )
+                .opacity(viewModel.isInspectingUFO ? 0 : 1)
+                .accessibilityHidden(viewModel.isInspectingUFO)
             }
         }
     }

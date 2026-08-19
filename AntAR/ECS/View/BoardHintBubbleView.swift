@@ -38,7 +38,7 @@ struct BoardHintBubbleView: View {
                         // edge — not the ant's body/head, which stays mostly on-screen.
                         .offset(x: -56, y: 45)
 
-                    Text("Jalur belum terdeteksi.\nMungkin belum ada balok di depan UFO atau warna baloknya terlalu terang.")
+                    Text("Belum ada balok di depan UFO.\nYuk pasang balok jalur terlebih dahulu!")
                         .font(.custom("Fredoka-SemiBold", size: 18))
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
