@@ -230,13 +230,6 @@ final class ARExperienceViewModel {
         hasAddedScene = true
     }
 
-    private var tableScanOverlay: Entity?
-
-    func addTableScanOverlay(_ entity: Entity) {
-        experienceRoot.addChild(entity)
-        tableScanOverlay = entity
-    }
-
     private func startMasterScenePreloadIfNeeded() {
         guard masterSceneAssetLoadTask == nil else { return }
 
@@ -274,12 +267,6 @@ final class ARExperienceViewModel {
     func confirmPlacement(at worldPoint: SIMD3<Float>) {
         guard isTableReadyToPlace, !hasPlacedAnchor else { return }
         hasPlacedAnchor = true
-
-        // The LiDAR scan overlay's job was purely "confirm a surface was found" during the
-        // Tap-untuk-Memindai wait — gone the instant the user actually taps, same moment
-        // everything else in this method starts building the real placed scene.
-        tableScanOverlay?.removeFromParent()
-        tableScanOverlay = nil
 
         let anchor = Entity()
         anchor.name = "PlacementAnchor"
