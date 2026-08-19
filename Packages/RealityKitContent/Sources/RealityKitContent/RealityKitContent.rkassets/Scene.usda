@@ -60,6 +60,11 @@ def Xform "Root"
 
                 over "Antenna_R"
                 {
+                    over "Elbow" (
+                        active = false
+                    )
+                    {
+                    }
                 }
             }
         }
@@ -141,7 +146,7 @@ def Xform "Root"
         double size = 0.2
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-0.52378696, 1.0133687, 1.0526881)
+        float3 xformOp:translate = (-0.9858279, 0.53250515, -0.21285456)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -169,7 +174,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 1
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-1.6352627, 1.269365, 0.30685347)
+        float3 xformOp:translate = (-1.6352627, 0.6640518, -0.32852852)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -197,7 +202,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-1.489671, 1.5251796, 1.2175262)
+        float3 xformOp:translate = (-1.3832573, 0.9127376, 0.43055576)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -225,7 +230,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (-1.7874857, 0.85212994, 1.5813117)
+        float3 xformOp:translate = (-1.5275182, 0.4439991, 0.36359423)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -253,7 +258,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (1.4736729, 1.4340671, 1.5215797)
+        float3 xformOp:translate = (1.4736729, 0.95320356, 0.29499906)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -281,7 +286,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 4
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (1.0325748, 0.83339036, 0.82811713)
+        float3 xformOp:translate = (1.1241168, 0.46801603, 0.041146696)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -309,7 +314,7 @@ def Xform "Root"
         int ui:nodegraph:node:stackingOrder = 5
         quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (0.3, 0.16, 3)
-        float3 xformOp:translate = (0.73835814, 1.2179717, 0.71546006)
+        float3 xformOp:translate = (0.93891144, 0.7371081, -0.071510375)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
         def Material "DefaultMaterial"
@@ -372,40 +377,14 @@ def Xform "Root"
         }
     }
 
-    def "env_grass_tuft" (
-        active = true
-        references = @Environment/env_grass_tuft.usdz@
-    )
-    {
-        reorder nameChildren = ["env_nest", "Materials", "Root", "Blades"]
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.32752684, 0, -0.55546653)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-    }
-
     def "ant_nest" (
         active = true
         references = @Environment/env_nest.usdz@
     )
     {
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
+        float3 xformOp:scale = (2, 2, 2)
         float3 xformOp:translate = (0.016931653, 0, -2.377834)
-        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
-    }
-
-    def "env_grass_tuft_1" (
-        active = true
-        references = @Environment/env_grass_tuft.usdz@
-    )
-    {
-        reorder nameChildren = ["env_nest", "Materials", "Root", "Blades"]
-        float2 ui:nodegraph:node:pos = (20, 20)
-        int ui:nodegraph:node:stackingOrder = 1
-        quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.542832, 0, -0.55546653)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -418,8 +397,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (40, 40)
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.29105622, 0, -1.4361548)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.29105622, 0, -1.7391105)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -432,8 +411,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (60, 60)
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.44611323, 0, -1.4361548)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.84167874, 0, -1.4361548)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -622,8 +601,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (80, 80)
         int ui:nodegraph:node:stackingOrder = 4
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (0.65837324, 0, -1.7180403)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.45989868, 0, -1.7180403)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -636,8 +615,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (40, 40)
         int ui:nodegraph:node:stackingOrder = 2
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.28180677, 0, -0.83936954)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.20717543, 0, -0.83936954)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -650,8 +629,8 @@ def Xform "Root"
         float2 ui:nodegraph:node:pos = (60, 60)
         int ui:nodegraph:node:stackingOrder = 3
         quatf xformOp:orient = (1, 0, 0, 0)
-        float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.6025211, 0, -1.194296)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.6551337, 0, -1.0589778)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 
@@ -769,8 +748,177 @@ def Xform "Root"
     )
     {
         quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (0.75, 0.75, 0.75)
+        float3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_flowers" (
+        active = true
+        prepend references = @Environment/env_grass_flowers.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
         float3 xformOp:scale = (1, 1, 1)
-        float3 xformOp:translate = (-0.29174632, 0.0140274195, 0.6257301)
+        float3 xformOp:translate = (0, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_mushrooms" (
+        active = true
+        prepend references = @Environment/env_grass_mushrooms.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.49855542, 0, -0.8561079)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_rock" (
+        active = true
+        prepend references = @Environment/env_grass_rock.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.35687932, 0, -1.2063197)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_tall" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (0, 0.2617994, 0)
+        }
+        prepend references = @Environment/env_grass_tall.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.9914449, 0, 0.13052619, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.25055167, 0, -1.5856433)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_tuft_7" (
+        active = true
+        prepend references = @Environment/env_grass_tuft.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.29532441, 0, -0.8643696)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_wide" (
+        active = true
+        prepend references = @Environment/env_grass_wide.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.42935377, 0, -0.28607965)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_leaf_patch" (
+        active = true
+        prepend references = @Environment/env_leaf_patch.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.64240986, 0, -1.4886214)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_rock_1" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (0, 1.0471976, 0)
+        }
+        prepend references = @Environment/env_grass_rock.usdz@
+    )
+    {
+        float2 ui:nodegraph:node:pos = (20, 20)
+        int ui:nodegraph:node:stackingOrder = 1
+        quatf xformOp:orient = (0.8660254, 0, 0.5, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.7736963, 0, -0.5598024)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_rock_cluster" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (0, 1.0471976, 0)
+        }
+        prepend references = @Environment/env_rock_cluster.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.8660254, 0, 0.5, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.40806222, 0, -1.3513293)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_flowers_1" (
+        active = true
+        prepend references = @Environment/env_grass_flowers.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.2519342, 0, -1.8848233)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_tuft" (
+        active = true
+        references = @Environment/env_grass_tuft.usdz@
+    )
+    {
+        reorder nameChildren = ["env_nest", "Materials", "Root", "Blades"]
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.26207542, 0, -0.56818616)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_flowers_2" (
+        active = true
+        customData = {
+            float3 rotationEulerHint = (0, 0.69813174, 0)
+        }
+        prepend references = @Environment/env_grass_flowers.usdz@
+    )
+    {
+        quatf xformOp:orient = (0.9396926, 0, 0.34202012, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.6628192, 0, -1.7205732)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_rock_single" (
+        active = true
+        prepend references = @Environment/env_rock_single.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (-0.3718357, 0, -0.44906467)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+    }
+
+    def "env_grass_flowers_3" (
+        active = true
+        prepend references = @Environment/env_grass_flowers.usdz@
+    )
+    {
+        quatf xformOp:orient = (1, 0, 0, 0)
+        float3 xformOp:scale = (3, 3, 3)
+        float3 xformOp:translate = (0.6356948, 0, -0.72707844)
         uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
     }
 }

@@ -14,9 +14,10 @@ import SwiftUI
 struct ScanningTableView: View {
     let isReadyToPlace: Bool
     // True once ARKit has found a .table-classified plane that's still under the real
-    // (0.25×0.25m) size requirement — distinct from "haven't found a table at all yet," so the
+    // (0.80×0.80m) size requirement — distinct from "haven't found a table at all yet," so the
     // user gets told to look for a bigger surface instead of the generic "aim at a surface" hint.
     let isSurfaceTooSmall: Bool
+    let surfaceDistanceStatus: SurfaceDistanceStatus
 
     // Design spec (Figma dev-mode, "Rectangle 19"): 222x222, corner radius 28, border 6 — applied
     // to the bracket geometry below (corner arc radius + stroke width), not a closed rectangle.
@@ -29,11 +30,15 @@ struct ScanningTableView: View {
 
     private var caption: String {
         if isReadyToPlace {
-            "Bidang datar terdeteksi"
+            "Jarak ke bidang sudah cukup"
         } else if isSurfaceTooSmall {
-            "Permukaan terlalu kecil, cari yang lebih luas"
+            "Cari bidang datar"
+        } else if surfaceDistanceStatus == .tooClose {
+            "Jarak ke bidang belum cukup"
+        } else if surfaceDistanceStatus == .tooFar {
+            "Jarak ke bidang terlalu jauh"
         } else {
-            "Arahkan kamera ke bidang datar"
+            "Cari bidang datar"
         }
     }
 
@@ -97,11 +102,23 @@ private struct BracketReticle: Shape {
     ZStack {
         Color.gray.ignoresSafeArea()
         VStack {
-            ScanningTableView(isReadyToPlace: false, isSurfaceTooSmall: false)
+            ScanningTableView(
+                isReadyToPlace: false,
+                isSurfaceTooSmall: false,
+                surfaceDistanceStatus: .unavailable
+            )
             Spacer().frame(height: 40)
-            ScanningTableView(isReadyToPlace: false, isSurfaceTooSmall: true)
+            ScanningTableView(
+                isReadyToPlace: false,
+                isSurfaceTooSmall: true,
+                surfaceDistanceStatus: .unavailable
+            )
             Spacer().frame(height: 40)
-            ScanningTableView(isReadyToPlace: true, isSurfaceTooSmall: false)
+            ScanningTableView(
+                isReadyToPlace: true,
+                isSurfaceTooSmall: false,
+                surfaceDistanceStatus: .valid
+            )
         }
     }
 }

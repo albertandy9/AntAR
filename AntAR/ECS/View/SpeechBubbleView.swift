@@ -30,64 +30,54 @@ struct SpeechBubbleView: View {
     private static let avatarWidth: CGFloat = 240
 
     var body: some View {
-        // ZStack, not .overlay() — bubble goes in FIRST (bottom layer) and the avatar SECOND (top
-        // layer), so the ant now draws OVER the bubble where they overlap, in front instead of
-        // tucked behind it.
-        ZStack(alignment: .topLeading) {
-            Text(text)
-                .font(.custom("Fredoka-Regular", size: 20))
-                .foregroundStyle(Self.textColor)
-                .multilineTextAlignment(.center)
-                // Padding internal dikembalikan agar teks tetap presisi di tengah kotak — top
-                // padding grows a bit when there's an avatar overlapping down from above, so its
-                // bottom edge doesn't crowd the first line of text. Bottom was only 10 (top was
-                // 30-50), leaving noticeably less breathing room below the text than above it —
-                // bumped to 24 so the text sits centered in the bubble instead of crowding its
-                // bottom edge.
-                .padding(.top, avatarImageName == nil ? 34 : 50)
-                .padding(.bottom, 24)
-                .padding(.horizontal, 20)
-                .background(
-                    // Only the avatar case pushes the tail out to 225 — that's not "wherever looks
-                    // nice," it's specifically clearing the avatar's own right edge (offset x -30 +
-                    // avatarWidth 240 = 210, +15 margin) so the tail isn't hidden behind the ant.
-                    // The plain (no avatar) case keeps the original 80 — pushing every bubble to
-                    // 225 would overflow a short, one-line, avatar-less bubble that never needs to
-                    // clear anything.
-                    SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
-                        .fill(Self.fillColor)
-                        .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
-                )
-
-            if let avatarImageName {
-                Image(avatarImageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: Self.avatarWidth)
-                    // Mostly above the bubble (negative y pushes it up), a little over the
-                    // bubble's own leading edge (negative x) so it reads as "perched on top of
-                    // the tail corner" rather than floating separately above it. Fixed points,
-                    // not a fraction of avatarWidth — height is no longer a known square, so
-                    // there's nothing meaningful to take a fraction of.
-                    //
-                    // At avatarWidth=240, rendered height ≈ 240/(195/96) ≈ 118. The bubble's
-                    // visible teal surface starts 18pt down from this ZStack's origin
-                    // (SpeechBubbleShape's tailHeight — the tiny pointer triangle occupies the
-                    // first 18pt), so offset -60 puts the avatar's bottom edge at frame-relative
-                    // y ≈ 58: 40pt into the visible bubble, just above the text's own top padding
-                    // (50) so the overlap still doesn't cover any text.
-                    .offset(x: -30, y: -60)
+        Text(text)
+            .font(.custom("Fredoka-Regular", size: 20))
+            .foregroundStyle(Self.textColor)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 330)
+            .padding(.top, avatarImageName == nil ? 34 : 50)
+            .padding(.bottom, 24)
+            .padding(.horizontal, 20)
+            .background(
+                SpeechBubbleShape(tailInset: avatarImageName == nil ? 80 : 225)
+                    .fill(Self.fillColor)
+                    .shadow(color: Self.shadowColor, radius: 0, x: 2, y: 7)
+            )
+            // The arrow is attached to the bubble itself. The avatar is a separate overlay and
+            // therefore cannot expand the layout bounds or push this indicator down the screen.
+            .overlay(alignment: .bottomTrailing) {
+                DialogueAdvanceIndicator()
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                    .accessibilityHidden(true)
             }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            Text("...")
-                .font(.custom("Fredoka-Regular", size: 20))
-                .foregroundStyle(Self.textColor)
-                .padding(.trailing, 16)
-                .padding(.bottom, 8)
-                .accessibilityHidden(true)
-        }
-        .animation(.default, value: text)
+            .overlay(alignment: .topLeading) {
+                if let avatarImageName {
+                    Image(avatarImageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: Self.avatarWidth)
+                        .offset(x: -30, y: -60)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .animation(.default, value: text)
+    }
+}
+
+/// Shared Figma-style affordance for every tappable dialogue bubble.
+struct DialogueAdvanceIndicator: View {
+    private static let fill = Color(red: 210 / 255, green: 239 / 255, blue: 241 / 255)
+    private static let ink = Color(red: 35 / 255, green: 85 / 255, blue: 99 / 255)
+
+    var body: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Self.ink)
+            .offset(x: 1)
+            .frame(width: 24, height: 24)
+            .background(Circle().fill(Self.fill))
+            .overlay(Circle().stroke(Self.ink, lineWidth: 2))
     }
 }
 

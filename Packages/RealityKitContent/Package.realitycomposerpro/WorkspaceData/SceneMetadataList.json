@@ -8,6 +8,14 @@
     "objectMetadataList" : [
       [
         "0A9B4653-B11E-4D6A-850E-C6FCB621626C",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "0A9B4653-B11E-4D6A-850E-C6FCB621626C",
         "Root",
         "GridMaterial"
       ],
@@ -23,14 +31,6 @@
       {
         "isExpanded" : true,
         "isLocked" : false
-      },
-      [
-        "0A9B4653-B11E-4D6A-850E-C6FCB621626C",
-        "Root"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
       }
     ]
   },
@@ -38,7 +38,8 @@
     "objectMetadataList" : [
       [
         "147CA59D-13AD-4B79-A70F-A20DD9A2E747",
-        "Root"
+        "Root",
+        "friendly_ufo"
       ],
       {
         "isExpanded" : true,
@@ -46,8 +47,7 @@
       },
       [
         "147CA59D-13AD-4B79-A70F-A20DD9A2E747",
-        "Root",
-        "friendly_ufo"
+        "Root"
       ],
       {
         "isExpanded" : true,
@@ -65,7 +65,60 @@
       [
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
-        "bakcground_white"
+        "ant_march_1_ruby_walk",
+        "Body_Root",
+        "Head_Pivot",
+        "Antenna_L"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track6"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "bakcground",
+        "Materials"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track5"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track3"
       ],
       {
         "isExpanded" : true,
@@ -76,6 +129,48 @@
         "Root",
         "WalkAnim",
         "Track8"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "bakcground_white"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track7"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "ant_noanthena",
+        "Body_Root",
+        "Head_Pivot",
+        "Antenna_L",
+        "Elbow"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
+        "Root",
+        "WalkAnim",
+        "Track4"
       ],
       {
         "isExpanded" : true,
@@ -102,92 +197,7 @@
         "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
         "Root",
         "WalkAnim",
-        "Track7"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track3"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "ant_noanthena",
-        "Body_Root",
-        "Head_Pivot",
-        "Antenna_L",
-        "Elbow"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track6"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track5"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "ant_march_1_ruby_walk",
-        "Body_Root",
-        "Head_Pivot",
-        "Antenna_L"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
         "Track2"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track4"
-      ],
-      {
-        "isExpanded" : true,
-        "isLocked" : false
-      },
-      [
-        "26DBAE76-5DD8-47B6-A085-1B4ADA111097",
-        "Root",
-        "WalkAnim",
-        "Track"
       ],
       {
         "isExpanded" : true,

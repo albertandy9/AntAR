@@ -30,12 +30,12 @@ enum BlockLayoutConfig {
             irMaterial: .darkPath,
             positionOverride: nil
         ),
-        Entry(
-            name: "Block3",
-            color: UIColor(red: 0.16, green: 0.46, blue: 0.96, alpha: 1),
-            irMaterial: .lightObstacle,
-            positionOverride: nil
-        ),
+		Entry(
+			name: "Block3",
+			color: UIColor(white: 0.015, alpha: 1),
+			irMaterial: .darkPath,
+			positionOverride: nil
+		),
         Entry(
             name: "Block4",
             color: UIColor(white: 0.015, alpha: 1),
@@ -54,12 +54,12 @@ enum BlockLayoutConfig {
             irMaterial: .lightObstacle,
             positionOverride: nil
         ),
-        Entry(
-            name: "Block7",
-            color: UIColor(white: 0.015, alpha: 1),
-            irMaterial: .darkPath,
-            positionOverride: nil
-        ),
+		Entry(
+			name: "Block7",
+			color: UIColor(red: 0.16, green: 0.46, blue: 0.96, alpha: 1),
+			irMaterial: .lightObstacle,
+			positionOverride: nil
+		),
     ]
 
     /// Five route positions are required; the other two blocks are alternatives the learner can

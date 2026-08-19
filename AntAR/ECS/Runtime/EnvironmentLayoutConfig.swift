@@ -3,37 +3,46 @@
 //  AntAR
 //
 
-import UIKit
-
 enum EnvironmentLayoutConfig {
-    // TUNABLE — every grass tuft to reveal alongside ufo_jalan.
-    static let grassEntityNames: [String] = [
+    /// Every authored environmental decoration currently placed in the RCP scene. Keeping these
+    /// names explicit makes state-driven visibility deterministic without recreating any asset or
+    /// material in Swift.
+    static let decorativeEntityNames: [String] = [
         "env_grass_tuft",
-        "env_grass_tuft_1",
         "env_grass_tuft_2",
         "env_grass_tuft_3",
         "env_grass_tuft_4",
         "env_grass_tuft_5",
         "env_grass_tuft_6",
+        "env_grass_tuft_7",
+        "env_grass_flowers",
+        "env_grass_flowers_1",
+        "env_grass_flowers_2",
+        "env_grass_flowers_3",
+        "env_grass_mushrooms",
+        "env_grass_rock",
+        "env_grass_rock_1",
+        "env_grass_tall",
+        "env_grass_wide",
+        "env_leaf_patch",
+        "env_rock_cluster",
+        "env_rock_single",
     ]
 
     static let nestEntityName = "ant_nest"
 
-    /// Preferred authored terrain instance. The aliases keep existing RCP exports working while
-    /// Reality Composer Pro finishes serializing the scene-hierarchy rename to `background`.
-    static let terrainEntityNames = [
+    /// Preferred authored surface instance. `bakcground` is the legacy serialized name currently
+    /// present in Scene.usda; it is still the textured terrain, never a generated-color fallback.
+    static let authoredSurfaceEntityNames = [
         "background",
+        "bakcground",
         "env_terrain_1",
         "env_terrain",
     ]
 
-    /// The original flat plane is only a fallback and is hidden whenever authored terrain exists.
+    /// Old untextured planes are used only when no authored surface exists.
     static let fallbackBackgroundEntityNames = [
         "background_white",
         "bakcground_white",
-        "bakcground",
     ]
-
-    // TUNABLE — fallback plane color. The authored terrain keeps its own USDZ materials.
-    static let backgroundColor: UIColor = .systemBrown
 }

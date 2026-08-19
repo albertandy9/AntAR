@@ -18,6 +18,7 @@ final class ARExperienceViewModel {
     var isTableReadyToPlace = false
     var isCoachingOverlayActive = true
     private(set) var hasFoundUndersizedTable = false
+    private(set) var surfaceDistanceStatus: SurfaceDistanceStatus = .unavailable
     var sensorCount = 2
     var irLineActivations: [Float] = Array(repeating: 0, count: 2)
     var isIRLineDetected = false
@@ -28,12 +29,10 @@ final class ARExperienceViewModel {
     var sensorLearningPhase: SensorLearningPhase = .baseline
     var isInspectingUFO = false
     var isFinishingUFOInspection = false
-    var ufoInspectionScreenPosition: CGPoint?
     var ufoStallReason: UFOStallReason?
-    var isSensorStabilityWarning = false
     var isBlockTooFarWarning = false
-    var travelWarningTitle = "UFO berhenti"
-    var travelWarningMessage: String?
+    private(set) var activeTravelDialogue: UFOTravelDialogue?
+    private(set) var isAwaitingSensorInspectionTap = false
     var isShowingBoardHint = false
     private(set) var lostAntGreetPhase: LostAntGreetPhase?
     private(set) var placementAnchor: Entity?
@@ -52,7 +51,6 @@ final class ARExperienceViewModel {
         repeating: nil,
         count: BlockPlacementConfig.dropSlotNames.count
     )
-
     var hasPlacedBlocks: Bool {
         placedBlockIDsBySlot.contains { $0 != nil }
     }
@@ -72,7 +70,11 @@ final class ARExperienceViewModel {
     // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its transform
     // to ray-plane-intersect a 2D tap into a 3D table point (ContentView.intersect(ray:withPlane:)).
     let scannedTable = AnchorEntity(
-        .plane(.horizontal, classification: .table, minimumBounds: SIMD2<Float>(repeating: 0.25))
+        .plane(
+            .horizontal,
+            classification: .table,
+            minimumBounds: SurfaceAnchorRequirements.minimumBounds
+        )
     )
 
     // Same .table classification as scannedTable, but a much smaller minimumBounds — used only to
@@ -99,9 +101,12 @@ final class ARExperienceViewModel {
     private var hasReportedRequiredPathPlaced = false
     private var hasReportedUFOMoveRequested = false
     @ObservationIgnored private var lastIRTelemetryRefreshTime: TimeInterval = 0
-    @ObservationIgnored private var lastUFOProjectionRefreshTime: TimeInterval = 0
     @ObservationIgnored private var lastObservedUFOStallReason: UFOStallReason?
-    @ObservationIgnored private var hasShownSensorStabilityWarning = false
+    @ObservationIgnored private var pendingTravelDialogues: [UFOTravelDialogue] = []
+    @ObservationIgnored private var shouldPromptSensorInspectionWhenDialoguesFinish = false
+    @ObservationIgnored private var hasShownFirstPathDialogue = false
+    @ObservationIgnored private var hasShownSensorAdjustmentDialogue = false
+    @ObservationIgnored private var hasShownSensorCalibratedDialogue = false
 
     private var masterScene: Entity?
 
@@ -227,13 +232,6 @@ final class ARExperienceViewModel {
         hasAddedScene = true
     }
 
-    private var tableScanOverlay: Entity?
-
-    func addTableScanOverlay(_ entity: Entity) {
-        experienceRoot.addChild(entity)
-        tableScanOverlay = entity
-    }
-
     private func startMasterScenePreloadIfNeeded() {
         guard masterSceneAssetLoadTask == nil else { return }
 
@@ -258,25 +256,39 @@ final class ARExperienceViewModel {
 
 
     func refreshSurfaceReadiness() {
-        guard !isTableReadyToPlace else { return }
-        isTableReadyToPlace = scannedTable.components[SurfaceAnchorComponent.self]?.isLocked ?? false
+        guard !hasPlacedAnchor else { return }
+
+        let isSurfaceLocked = scannedTable.components[SurfaceAnchorComponent.self]?.isLocked ?? false
+        let distanceStatus = currentSurfaceDistanceStatus()
+        if surfaceDistanceStatus != distanceStatus {
+            surfaceDistanceStatus = distanceStatus
+        }
+
+        let isReady = isSurfaceLocked && distanceStatus == .valid
+        if isTableReadyToPlace != isReady {
+            isTableReadyToPlace = isReady
+        }
     }
 
 
     func refreshUndersizedTableDetected() {
-        guard !hasFoundUndersizedTable else { return }
-        hasFoundUndersizedTable = looselySizedTable.isAnchored
+        guard !hasPlacedAnchor else { return }
+        let isOnlySmallSurfaceAvailable = looselySizedTable.isAnchored && !scannedTable.isAnchored
+        if hasFoundUndersizedTable != isOnlySmallSurfaceAvailable {
+            hasFoundUndersizedTable = isOnlySmallSurfaceAvailable
+        }
     }
 
     func confirmPlacement(at worldPoint: SIMD3<Float>) {
-        guard isTableReadyToPlace, !hasPlacedAnchor else { return }
+        let distanceStatus = currentSurfaceDistanceStatus()
+        surfaceDistanceStatus = distanceStatus
+        guard isTableReadyToPlace,
+              distanceStatus == .valid,
+              !hasPlacedAnchor else {
+            isTableReadyToPlace = false
+            return
+        }
         hasPlacedAnchor = true
-
-        // The LiDAR scan overlay's job was purely "confirm a surface was found" during the
-        // Tap-untuk-Memindai wait — gone the instant the user actually taps, same moment
-        // everything else in this method starts building the real placed scene.
-        tableScanOverlay?.removeFromParent()
-        tableScanOverlay = nil
 
         let anchor = Entity()
         anchor.name = "PlacementAnchor"
@@ -298,6 +310,24 @@ final class ARExperienceViewModel {
 
 
         report(.surfaceLocked)
+    }
+
+    private func currentSurfaceDistanceStatus() -> SurfaceDistanceStatus {
+        guard scannedTable.isAnchored, cameraAnchor.isAnchored else { return .unavailable }
+
+        // Horizontal planes are gravity-aligned, so the world-space Y difference is the true
+        // perpendicular phone-to-surface distance even when the plane center is off-screen.
+        let cameraY = cameraAnchor.position(relativeTo: nil).y
+        let surfaceY = scannedTable.position(relativeTo: nil).y
+        let distance = abs(cameraY - surfaceY)
+
+        if distance < SurfaceAnchorRequirements.validCameraDistance.lowerBound {
+            return .tooClose
+        }
+        if distance > SurfaceAnchorRequirements.validCameraDistance.upperBound {
+            return .tooFar
+        }
+        return .valid
     }
 
 
@@ -359,6 +389,22 @@ final class ARExperienceViewModel {
     }
 
     func refreshUFODirectionIndicator(using arView: ARView) {
+        if gameState.supportsRouteBuilding {
+            ufoDirection = nil
+            guard isAwaitingSensorInspectionTap,
+                  !isInspectingUFO,
+                  let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO),
+                  ufo.isEnabled,
+                  let position = arView.project(ufo.position(relativeTo: nil)),
+                  arView.bounds.insetBy(dx: -24, dy: -24).contains(position) else {
+                ufoTapScreenPosition = nil
+                return
+            }
+
+            ufoTapScreenPosition = position
+            return
+        }
+
         guard gameState == .ufoAppears,
               let masterScene,
               let ufo = masterScene.findEntity(named: "ufo_angkat_semut"),
@@ -429,6 +475,10 @@ final class ARExperienceViewModel {
         }
 
         beginUFOInspection()
+        if isInspectingUFO {
+            isAwaitingSensorInspectionTap = false
+            ufoTapScreenPosition = nil
+        }
         return true
     }
 
@@ -580,35 +630,27 @@ final class ARExperienceViewModel {
         guard !hasRevealedEnvironment, let masterScene else { return }
         hasRevealedEnvironment = true
 
-        let authoredTerrain = EnvironmentLayoutConfig.terrainEntityNames.lazy.compactMap {
-            masterScene.findEntity(named: $0)
-        }.first
-        let flatBackground = EnvironmentLayoutConfig.fallbackBackgroundEntityNames.lazy.compactMap {
+        let authoredSurface = EnvironmentLayoutConfig.authoredSurfaceEntityNames.lazy.compactMap {
             masterScene.findEntity(named: $0)
         }.first
 
-        // Prefer the authored terrain and preserve every material from its USDZ. The simple
-        // brown plane remains a fallback for scenes that have not added the terrain asset yet.
-        if let terrain = authoredTerrain {
-            terrain.isEnabled = true
-            flatBackground?.isEnabled = false
-        } else if let background = flatBackground {
-            background.isEnabled = true
-
-            if let modelHolder = Self.modelEntity(in: background),
-               var model = modelHolder.components[ModelComponent.self] {
-                var material = PhysicallyBasedMaterial()
-                material.baseColor = .init(tint: EnvironmentLayoutConfig.backgroundColor)
-                material.roughness = .init(floatLiteral: 0.92)
-                material.metallic = .init(floatLiteral: 0)
-                model.materials = [material]
-                modelHolder.components[ModelComponent.self] = model
+        // The scene-authored background is the complete surface: geometry, dimensions, and all
+        // PBR materials come directly from RCP. Swift only controls visibility and never replaces
+        // its material with a generated color.
+        if let authoredSurface {
+            authoredSurface.isEnabled = true
+            for name in EnvironmentLayoutConfig.fallbackBackgroundEntityNames {
+                masterScene.findEntity(named: name)?.isEnabled = false
             }
+        } else if let fallback = EnvironmentLayoutConfig.fallbackBackgroundEntityNames.lazy.compactMap({
+            masterScene.findEntity(named: $0)
+        }).first {
+            fallback.isEnabled = true
         }
 
         masterScene.findEntity(named: EnvironmentLayoutConfig.nestEntityName)?.isEnabled = true
 
-        for (index, name) in EnvironmentLayoutConfig.grassEntityNames.enumerated() {
+        for (index, name) in EnvironmentLayoutConfig.decorativeEntityNames.enumerated() {
             masterScene.findEntity(named: name)?.isEnabled = true
 
             // Two small assets per frame is visually immediate but avoids one large activation
@@ -715,6 +757,10 @@ final class ARExperienceViewModel {
         block.components.set(OpacityComponent(opacity: 1))
         block.isEnabled = true
         updatePlacementGuide()
+        if masterScene.findEntity(named: AntARSceneNames.travelUFO)?
+            .components[UFOPathFollowerComponent.self]?.state == .stalled {
+            requestRouteReevaluation()
+        }
         requestUFOTravel()
         reportRequiredPathPlacedIfReady()
     }
@@ -749,9 +795,23 @@ final class ARExperienceViewModel {
         return nil
     }
 
-    /// Visual acknowledgement while a placed block is being dragged toward the 2D inventory.
-    func setPlacedBlockDragActive(_ active: Bool, blockID: String) {
-        guard let block = masterScene?.findEntity(named: blockID) else { return }
+    /// A route is a contiguous sequence, so only its exposed end can be removed. Removing an
+    /// earlier tile while a later one is still installed would leave a gap behind the UFO and
+    /// make the placement guide/order ambiguous.
+    func canReturnPlacedBlockToInventory(blockID: String) -> Bool {
+        guard let blockSlot = placedBlockIDsBySlot.firstIndex(where: { $0 == blockID }),
+              let lastOccupiedSlot = placedBlockIDsBySlot.lastIndex(where: { $0 != nil }) else {
+            return false
+        }
+        return blockSlot == lastOccupiedSlot
+    }
+
+    /// Immediate visual acknowledgement while a placed block is being touched and dragged.
+    func setPlacedBlockHoldActive(_ active: Bool, blockID: String) {
+        guard placedBlockIDsBySlot.contains(where: { $0 == blockID }),
+              let block = masterScene?.findEntity(named: blockID) else {
+            return
+        }
         block.components.set(OpacityComponent(opacity: active ? 0.52 : 1))
     }
 
@@ -759,6 +819,7 @@ final class ARExperienceViewModel {
     /// collision, material, and ECS appearance data are reused the next time it is placed.
     func returnPlacedBlockToInventory(blockID: String) {
         guard gameState != .completed,
+              canReturnPlacedBlockToInventory(blockID: blockID),
               let slotIndex = placedBlockIDsBySlot.firstIndex(where: { $0 == blockID }),
               let masterScene,
               let block = masterScene.findEntity(named: blockID),
@@ -777,9 +838,10 @@ final class ARExperienceViewModel {
         }
         updatePlacementGuide()
 
-        // Editing a live route safely resets the ECS-owned follower before another run.
+        // Editing a live route asks ECS to sample it again without changing the UFO's transform
+        // or current target. The dedicated reset button remains the only full route reset.
         if isTravelUFOReady, gameState.supportsRouteBuilding {
-            requestUFOReset()
+            requestRouteReevaluation()
         }
     }
 
@@ -824,11 +886,28 @@ final class ARExperienceViewModel {
         gameDirector.components[UFOControlComponent.self] = control
         isGasPedalPressed = false
         ufoStallReason = nil
-        travelWarningMessage = nil
+        activeTravelDialogue = nil
+        pendingTravelDialogues.removeAll()
+        shouldPromptSensorInspectionWhenDialoguesFinish = false
+        isAwaitingSensorInspectionTap = false
+        ufoTapScreenPosition = nil
     }
 
-    /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
-    /// this method only writes intent and releases throttle.
+    private func requestRouteReevaluation() {
+        guard isTravelUFOReady,
+              gameState.supportsRouteBuilding,
+              var control = gameDirector.components[UFOControlComponent.self] else {
+            return
+        }
+
+        control.requestRouteReevaluation()
+        gameDirector.components[UFOControlComponent.self] = control
+        isGasPedalPressed = false
+        ufoStallReason = nil
+    }
+
+    /// Requests the ECS inspection pose. Billboard is initialized only as a one-shot camera-facing
+    /// request; UFOInspectionSystem removes it after capturing the fixed underside orientation.
     func beginUFOInspection() {
         guard canControlUFO,
               !isInspectingUFO,
@@ -839,8 +918,11 @@ final class ARExperienceViewModel {
         }
 
         releaseGasPedal()
+        ufo.components.set(BillboardComponent())
         inspection.present()
         ufo.components[UFOInspectionComponent.self] = inspection
+        isAwaitingSensorInspectionTap = false
+        ufoTapScreenPosition = nil
         isInspectingUFO = true
         isFinishingUFOInspection = false
     }
@@ -866,29 +948,7 @@ final class ARExperienceViewModel {
             guard let self else { return }
             self.isInspectingUFO = false
             self.isFinishingUFOInspection = false
-            self.ufoInspectionScreenPosition = nil
         }
-    }
-
-    /// Projects the paused UFO to screen space at 30 Hz so the readable SwiftUI sensor controls
-    /// track immediately beneath it without making per-frame entity or mesh changes.
-    func refreshUFOInspectionProjection(using arView: ARView) {
-        guard isInspectingUFO,
-              let ufo = masterScene?.findEntity(named: AntARSceneNames.travelUFO) else {
-            return
-        }
-
-        let now = ProcessInfo.processInfo.systemUptime
-        guard now - lastUFOProjectionRefreshTime >= 1.0 / 30.0 else { return }
-        lastUFOProjectionRefreshTime = now
-
-        guard let position = arView.project(ufo.position(relativeTo: nil)) else { return }
-
-        if let current = ufoInspectionScreenPosition,
-           hypot(current.x - position.x, current.y - position.y) < 1 {
-            return
-        }
-        ufoInspectionScreenPosition = position
     }
 
     func setIRSensorCount(_ requestedCount: Int) {
@@ -952,8 +1012,10 @@ final class ARExperienceViewModel {
             rightMotorPower = follower.rightMotorPower
         }
         if isGasPedalPressed != nextGasState { isGasPedalPressed = nextGasState }
-        updateTravelWarning(for: follower.stallReason)
-        presentSensorStabilityWarningIfNeeded(for: follower)
+        updateTravelDialogue(for: follower.stallReason)
+        presentFirstPathDialogueIfNeeded(for: follower)
+        presentSensorAdjustmentDialogueIfNeeded(for: follower)
+        presentSensorCalibratedDialogueIfNeeded(for: follower)
     }
 
     private func bindTravelEntities(in scene: Entity) {
@@ -1007,9 +1069,21 @@ final class ARExperienceViewModel {
         ufo.components[UFOPathFollowerComponent.self] = follower
     }
 
-    func dismissTravelWarning() {
-        travelWarningMessage = nil
-        isSensorStabilityWarning = false
+    func completeTravelDialogue(_ dialogue: UFOTravelDialogue) {
+        guard activeTravelDialogue == dialogue else { return }
+
+        if dialogue == .sensorAdjustment {
+            shouldPromptSensorInspectionWhenDialoguesFinish = true
+        }
+
+        activeTravelDialogue = pendingTravelDialogues.isEmpty
+            ? nil
+            : pendingTravelDialogues.removeFirst()
+
+        if activeTravelDialogue == nil, shouldPromptSensorInspectionWhenDialoguesFinish {
+            shouldPromptSensorInspectionWhenDialoguesFinish = false
+            isAwaitingSensorInspectionTap = true
+        }
     }
 
     private func presentBlockTooFarWarning() {
@@ -1022,48 +1096,80 @@ final class ARExperienceViewModel {
         }
     }
 
-    private func presentSensorStabilityWarningIfNeeded(
+    private func presentFirstPathDialogueIfNeeded(
+        for follower: UFOPathFollowerComponent
+    ) {
+        guard !hasShownFirstPathDialogue,
+              follower.state == .following,
+              follower.stallReason == nil,
+              isGasPedalPressed,
+              follower.elapsedTravelTime >= 0.25 else {
+            return
+        }
+
+        hasShownFirstPathDialogue = true
+        enqueueTravelDialogue(.firstPathSuccess)
+    }
+
+    private func presentSensorAdjustmentDialogueIfNeeded(
         for follower: UFOPathFollowerComponent
     ) {
         guard sensorLearningPhase == .upgradeRecommended,
-              !hasShownSensorStabilityWarning,
-              travelWarningMessage == nil,
+              !hasShownSensorAdjustmentDialogue,
               follower.stallReason == nil,
               follower.state != .arrived else {
             return
         }
 
-        hasShownSensorStabilityWarning = true
-        isSensorStabilityWarning = true
+        hasShownSensorAdjustmentDialogue = true
         releaseGasPedal()
-        travelWarningTitle = "Sensor dapat dibuat lebih stabil"
-        travelWarningMessage = "UFO tetap dapat digunakan dengan konfigurasi sensor saat ini. Tambahkan sensor jika ingin pembacaan jalur dan gerakan yang lebih stabil."
+        enqueueTravelDialogue(.sensorAdjustment)
     }
 
-    private func updateTravelWarning(for reason: UFOStallReason?) {
+    private func presentSensorCalibratedDialogueIfNeeded(
+        for follower: UFOPathFollowerComponent
+    ) {
+        guard sensorLearningPhase == .calibrated,
+              !hasShownSensorCalibratedDialogue,
+              follower.state == .following,
+              !isInspectingUFO,
+              isGasPedalPressed,
+              follower.stallReason == nil else {
+            return
+        }
+
+        hasShownSensorCalibratedDialogue = true
+        enqueueTravelDialogue(.sensorCalibrated)
+    }
+
+    private func updateTravelDialogue(for reason: UFOStallReason?) {
         if ufoStallReason != reason { ufoStallReason = reason }
-        // Preserve the proximity explanation until the learner dismisses it. If a UFO stall also
-        // occurred, it will be surfaced on the following telemetry update.
         guard !isBlockTooFarWarning else { return }
         guard reason != lastObservedUFOStallReason else { return }
         lastObservedUFOStallReason = reason
-        if reason != nil { isSensorStabilityWarning = false }
 
-        travelWarningTitle = switch reason {
+        switch reason {
         case .noPath:
-            "Tidak ada balok di depan"
+            releaseGasPedal()
+            enqueueTravelDialogue(.noPath)
         case .lightBlockReflectsIR:
-            "Balok bukan jalur gelap"
+            releaseGasPedal()
+            enqueueTravelDialogue(.lightBlock)
         case nil:
-            "UFO berhenti"
+            break
         }
-        travelWarningMessage = switch reason {
-        case .noPath:
-            "Tidak ada jalur di depan. UFO tidak dapat bergerak maju. Tambahkan balok jalur untuk melanjutkan."
-        case .lightBlockReflectsIR:
-            "Warna balok di depan tidak cukup gelap dan memantulkan inframerah. UFO berhenti karena balok ini bukan jalur yang dapat diikuti."
-        case nil:
-            nil
+    }
+
+    private func enqueueTravelDialogue(_ dialogue: UFOTravelDialogue) {
+        guard activeTravelDialogue != dialogue,
+              !pendingTravelDialogues.contains(dialogue) else {
+            return
+        }
+
+        if activeTravelDialogue == nil {
+            activeTravelDialogue = dialogue
+        } else {
+            pendingTravelDialogues.append(dialogue)
         }
     }
 

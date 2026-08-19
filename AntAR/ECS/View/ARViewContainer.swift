@@ -44,19 +44,6 @@ struct ARViewContainer: UIViewRepresentable {
 
         let configuration = ARWorldTrackingConfiguration()
         configuration.planeDetection = [.horizontal]
-        // .meshWithClassification, not plain .mesh — TableScanOverlayBuilder needs per-face
-        // classification (ARMeshGeometry.classification) to find .table-classified triangles.
-        // Plain .mesh gives geometry with no classification source at all. Support for the two can
-        // differ per device, so each is checked independently rather than assumed from the other.
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
-            configuration.sceneReconstruction = .meshWithClassification
-            print("[ARViewContainer] sceneReconstruction = .meshWithClassification")
-        } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
-            configuration.sceneReconstruction = .mesh
-            print("[ARViewContainer] sceneReconstruction = .mesh — no per-face classification available, TableScanOverlayBuilder will never find .table faces")
-        } else {
-            print("[ARViewContainer] sceneReconstruction unsupported on this device — no LiDAR mesh at all")
-        }
         view.session.run(configuration)
         context.coordinator.configuration = configuration
 
@@ -95,10 +82,6 @@ struct ARViewContainer: UIViewRepresentable {
             if let arView = coordinator.arView {
                 viewModel?.refreshUFODirectionIndicator(using: arView)
             }
-            if viewModel?.isInspectingUFO == true, let arView = coordinator.arView {
-                viewModel?.refreshUFOInspectionProjection(using: arView)
-            }
-
             if !coordinator.hasHandedOffFromCoaching,
                let trackingState = coordinator.arView?.session.currentFrame?.camera.trackingState,
                case .normal = trackingState {
@@ -107,22 +90,6 @@ struct ARViewContainer: UIViewRepresentable {
                 viewModel?.isCoachingOverlayActive = false
             }
 
-
-            if !coordinator.hasBuiltTableScanOverlay, viewModel?.isTableReadyToPlace == true {
-                coordinator.framesSinceLastOverlayAttempt += 1
-                if coordinator.framesSinceLastOverlayAttempt >= 30,
-                   let viewModel, let anchors = coordinator.arView?.session.currentFrame?.anchors {
-                    coordinator.framesSinceLastOverlayAttempt = 0
-                    if let overlay = TableScanOverlayBuilder.build(
-                        from: anchors,
-                        planeTransform: viewModel.scannedTable.transformMatrix(relativeTo: nil),
-                        nearPoint: viewModel.scannedTable.position(relativeTo: nil)
-                    ) {
-                        coordinator.hasBuiltTableScanOverlay = true
-                        viewModel.addTableScanOverlay(overlay)
-                    }
-                }
-            }
         }
 
         DispatchQueue.main.async {
@@ -141,10 +108,6 @@ struct ARViewContainer: UIViewRepresentable {
         var updateSubscription: Cancellable?
         var lostAntGreetObserver: NSObjectProtocol?
         var hasHandedOffFromCoaching = false
-        var hasBuiltTableScanOverlay = false
-        // Starts at 30 (the throttle threshold), not 0, so the very first qualifying frame
-        // attempts immediately instead of waiting a full 30 frames before the first try.
-        var framesSinceLastOverlayAttempt = 30
         weak var viewModel: ARExperienceViewModel?
 
         deinit {

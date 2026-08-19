@@ -17,8 +17,16 @@ struct ContentView: View {
     @State private var isCameraAuthorized = false
     @State private var realityViewFrame: CGRect = .zero
     @State private var inventoryFrame: CGRect = .zero
+    @State private var draggedInventoryBlockID: String?
     @State private var draggedPlacedBlockID: String?
     @State private var isInventoryReturnTargeted = false
+    @State private var isStoryDialoguePresented = false
+
+    private var isInteractionBlockedByDialogue: Bool {
+        isStoryDialoguePresented
+            || viewModel.isShowingBoardHint
+            || viewModel.activeTravelDialogue != nil
+    }
 
     var body: some View {
         if hasStartedExperience {
@@ -44,15 +52,10 @@ struct ContentView: View {
                             }
                     )
                     .simultaneousGesture(
-                        DragGesture(minimumDistance: 12)
+                        DragGesture(minimumDistance: 0)
                             .onChanged(handlePlacedBlockDragChanged)
                             .onEnded(handlePlacedBlockDragEnded)
                     )
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let blockID = items.first else { return false }
-                        viewModel.placeBlockInFrontOfUFO(blockID: blockID)
-                        return true
-                    }
                     .ignoresSafeArea()
             }
 
@@ -75,7 +78,10 @@ struct ContentView: View {
                     HStack {
                         BlockInventoryView(
                             collectedBlocks: viewModel.collectedBlocks,
-                            isReturnTargeted: isInventoryReturnTargeted
+                            isReturnTargeted: isInventoryReturnTargeted,
+                            selectedBlockID: draggedInventoryBlockID,
+                            onBlockDragChanged: handleInventoryBlockDragChanged,
+                            onBlockDragEnded: handleInventoryBlockDragEnded
                         )
                         .onGeometryChange(for: CGRect.self) { geometry in
                             geometry.frame(in: .global)
@@ -96,7 +102,8 @@ struct ContentView: View {
                     isTableReadyToPlace: viewModel.isTableReadyToPlace,
                     lostAntGreetPhase: viewModel.lostAntGreetPhase,
                     isCoachingOverlayActive: viewModel.isCoachingOverlayActive,
-                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable
+                    isSurfaceTooSmall: viewModel.hasFoundUndersizedTable,
+                    surfaceDistanceStatus: viewModel.surfaceDistanceStatus
                 )
                 .padding(.top, 24)
 
@@ -126,9 +133,18 @@ struct ContentView: View {
             }
             .animation(.easeInOut(duration: 0.2), value: viewModel.isBlockTooFarWarning)
 
+            if isInteractionBlockedByDialogue {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { }
+                    .accessibilityHidden(true)
+            }
+
             StoryBubbleSequenceView(
                 lostAntGreetPhase: viewModel.lostAntGreetPhase,
                 hasTappedUFO: viewModel.hasTappedUFO,
+                isPresentingDialogue: $isStoryDialoguePresented,
                 onUFOStoryDismissed: { viewModel.beginAntBoardingIfNeeded() },
                 onAntDialogueDismissed: { viewModel.confirmAntDialogueDismissed() }
             )
@@ -137,53 +153,52 @@ struct ContentView: View {
                 BoardHintBubbleView(onDismiss: viewModel.dismissBoardHint)
             }
 
+            if let dialogue = viewModel.activeTravelDialogue {
+                UFOTravelDialogueView(
+                    dialogue: dialogue,
+                    onComplete: { viewModel.completeTravelDialogue(dialogue) }
+                )
+                .id(dialogue)
+            }
+
             if viewModel.isInspectingUFO {
-                GeometryReader { geometry in
-                    UFOSensorInspectionView(viewModel: viewModel)
-                        .position(inspectionControlPosition(in: geometry.size))
+                VStack {
+                    HStack {
+                        Spacer()
+                        UFOSensorInspectionView(viewModel: viewModel)
+                    }
+                    Spacer()
                 }
+                .padding(.top, 72)
+                .padding(.trailing, 16)
                 .ignoresSafeArea()
             }
         }
         .task {
             isCameraAuthorized = await AVCaptureDevice.requestAccess(for: .video)
         }
-        .alert(
-            viewModel.travelWarningTitle,
-            isPresented: Binding(
-                get: { viewModel.travelWarningMessage != nil },
-                set: { isPresented in
-                    if !isPresented { viewModel.dismissTravelWarning() }
-                }
-            )
-        ) {
-            if viewModel.isSensorStabilityWarning {
-                Button("Atur sensor") {
-                    viewModel.dismissTravelWarning()
-                    viewModel.beginUFOInspection()
-                }
-            }
-            Button(viewModel.isSensorStabilityWarning ? "Lanjutkan" : "Mengerti", role: .cancel) {
-                viewModel.dismissTravelWarning()
-            }
-        } message: {
-            Text(viewModel.travelWarningMessage ?? "")
+        .onChange(of: isInteractionBlockedByDialogue) { _, isBlocked in
+            guard isBlocked else { return }
+            cancelGameplayInteractions()
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.activeTravelDialogue)
     }
 
     private func handlePlacedBlockDragChanged(_ value: DragGesture.Value) {
+        guard !isInteractionBlockedByDialogue else { return }
+
         if draggedPlacedBlockID == nil {
             guard let arView,
                   let hitEntity = arView.entity(at: value.startLocation),
-                  let blockID = viewModel.placedBlockID(containing: hitEntity) else {
+                  let blockID = viewModel.placedBlockID(containing: hitEntity),
+                  viewModel.canReturnPlacedBlockToInventory(blockID: blockID) else {
                 return
             }
 
             draggedPlacedBlockID = blockID
-            viewModel.setPlacedBlockDragActive(true, blockID: blockID)
+            viewModel.setPlacedBlockHoldActive(true, blockID: blockID)
         }
 
-        guard draggedPlacedBlockID != nil else { return }
         let globalLocation = CGPoint(
             x: realityViewFrame.minX + value.location.x,
             y: realityViewFrame.minY + value.location.y
@@ -207,7 +222,7 @@ struct ContentView: View {
             .insetBy(dx: -24, dy: -24)
             .contains(globalLocation)
 
-        viewModel.setPlacedBlockDragActive(false, blockID: blockID)
+        viewModel.setPlacedBlockHoldActive(false, blockID: blockID)
         if shouldReturn {
             viewModel.returnPlacedBlockToInventory(blockID: blockID)
         }
@@ -216,8 +231,40 @@ struct ContentView: View {
         isInventoryReturnTargeted = false
     }
 
+    private func handleInventoryBlockDragChanged(blockID: String, location: CGPoint) {
+        guard !isInteractionBlockedByDialogue else { return }
+        draggedInventoryBlockID = blockID
+    }
+
+    private func handleInventoryBlockDragEnded(
+        blockID: String,
+        location: CGPoint,
+        translation: CGSize
+    ) {
+        defer { draggedInventoryBlockID = nil }
+        guard !isInteractionBlockedByDialogue else { return }
+
+        let dragDistance = hypot(translation.width, translation.height)
+        guard dragDistance >= 8,
+              realityViewFrame.contains(location),
+              !inventoryFrame.insetBy(dx: -12, dy: -12).contains(location) else {
+            return
+        }
+        viewModel.placeBlockInFrontOfUFO(blockID: blockID)
+    }
+
+    private func cancelGameplayInteractions() {
+        if let blockID = draggedPlacedBlockID {
+            viewModel.setPlacedBlockHoldActive(false, blockID: blockID)
+        }
+        draggedPlacedBlockID = nil
+        draggedInventoryBlockID = nil
+        isInventoryReturnTargeted = false
+        viewModel.setGasPedalPressed(false)
+    }
+
     private func handleTap(at location: CGPoint) {
-        guard let arView else { return }
+        guard !isInteractionBlockedByDialogue, let arView else { return }
 
         if viewModel.gameState == .ufoAppears {
             if let tappedEntity = arView.entity(at: location) {
@@ -229,6 +276,7 @@ struct ContentView: View {
         if viewModel.gameState.supportsRouteBuilding {
             if let tappedEntity = arView.entity(at: location) {
                 if viewModel.handleTravelUFOTapped(tappedEntity) { return }
+                if viewModel.placedBlockID(containing: tappedEntity) != nil { return }
                 viewModel.handleBlockTapped(tappedEntity)
             }
             return
@@ -241,17 +289,6 @@ struct ContentView: View {
         let planeTransform = viewModel.scannedTable.transformMatrix(relativeTo: nil)
         guard let tappedPoint = Self.intersect(ray: ray, withPlane: planeTransform) else { return }
         viewModel.confirmPlacement(at: tappedPoint)
-    }
-
-    private func inspectionControlPosition(in size: CGSize) -> CGPoint {
-        let ufoPosition = viewModel.ufoInspectionScreenPosition
-            ?? CGPoint(x: size.width / 2, y: size.height * 0.38)
-        let halfPanelWidth: CGFloat = 118
-        let panelHalfHeight: CGFloat = 105
-        return CGPoint(
-            x: min(max(ufoPosition.x, halfPanelWidth), size.width - halfPanelWidth),
-            y: min(max(ufoPosition.y + 125, panelHalfHeight), size.height - panelHalfHeight)
-        )
     }
 
     private static func intersect(

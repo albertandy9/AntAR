@@ -38,7 +38,7 @@ struct BoardHintBubbleView: View {
                         // edge — not the ant's body/head, which stays mostly on-screen.
                         .offset(x: -56, y: 45)
 
-                    Text("UFO belum bisa bergerak.\nYuk cari papan jalan terlebih dahulu!")
+                    Text("Belum ada balok di depan UFO.\nYuk pasang balok jalur terlebih dahulu!")
                         .font(.custom("Fredoka-SemiBold", size: 18))
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white)
@@ -52,9 +52,7 @@ struct BoardHintBubbleView: View {
                                 .shadow(color: bubbleShadowColor, radius: 0, x: 0, y: 6)
                         )
                         .overlay(alignment: .bottomTrailing) {
-                            Text("...")
-                                .font(.custom("Fredoka-Regular", size: 20))
-                                .foregroundStyle(.white)
+                            DialogueAdvanceIndicator()
                                 .padding(.trailing, 16)
                                 .padding(.bottom, 8)
                                 .accessibilityHidden(true)

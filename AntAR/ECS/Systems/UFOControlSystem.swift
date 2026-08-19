@@ -36,7 +36,8 @@ public struct UFOControlSystem: System {
             return
         }
 
-        if control.resetRequestID != control.handledResetRequestID {
+        let isResetRequested = control.resetRequestID != control.handledResetRequestID
+        if isResetRequested {
             control.handledResetRequestID = control.resetRequestID
             control.setThrottle(0)
 
@@ -56,12 +57,31 @@ public struct UFOControlSystem: System {
             follower.rightMotorPower = 0
         }
 
+        if control.routeChangeRequestID != control.handledRouteChangeRequestID {
+            control.handledRouteChangeRequestID = control.routeChangeRequestID
+
+            // A manual reset remains the only intent allowed to move the UFO back to the route
+            // start. Route edits merely rearm sensing from the exact transform and target where
+            // the UFO stopped.
+            if !isResetRequested, follower.state != .arrived {
+                control.setThrottle(0)
+                follower.state = .idle
+                follower.stallReason = nil
+                follower.moveRequested = true
+                follower.steeringError = 0
+                follower.previousSteeringError = 0
+                follower.lineLostDuration = 0
+                follower.leftMotorPower = 0
+                follower.rightMotorPower = 0
+            }
+        }
+
         if control.isPedalPressed, follower.state == .idle {
             follower.moveRequested = true
         }
 
-        // Placing the missing next block raises `moveRequested`. Rearm only the recoverable
-        // no-path stall; reflected-light stalls still require an explicit reset.
+        // Placing the missing next block raises `moveRequested`. Route replacement uses the
+        // route-change request above so reflected-light stalls can also resume in place.
         if follower.state == .stalled,
            follower.stallReason == .noPath,
            follower.moveRequested {

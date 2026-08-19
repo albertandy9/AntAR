@@ -46,28 +46,48 @@ struct OnboardingView: View {
             ZStack(alignment: .bottom) {
                 OnboardingBackground(pageIndex: pageIndex)
 
-                VStack {
-                    // Spacer atas diperbesar (0.35) agar kotak kartu lebih turun
-                    Spacer()
-                        .frame(height: geometry.size.height * 0.35)
+                if pageIndex == 0 {
+                    // The refreshed Home Screen artwork already contains the welcome card and its
+                    // Mulai button. Keep one invisible, accessible hit target over that baked-in
+                    // button instead of drawing a second card and button on top of the image.
+                    let referenceSize = CGSize(width: 402, height: 874)
+                    let imageScale = max(
+                        geometry.size.width / referenceSize.width,
+                        geometry.size.height / referenceSize.height
+                    )
+                    let renderedSize = CGSize(
+                        width: referenceSize.width * imageScale,
+                        height: referenceSize.height * imageScale
+                    )
+                    let imageOrigin = CGPoint(
+                        x: (geometry.size.width - renderedSize.width) / 2,
+                        y: (geometry.size.height - renderedSize.height) / 2
+                    )
 
-                    OnboardingCard {
-                        switch pageIndex {
-                        case 0:
-                            WelcomePage(onStart: advance)
-                        default:
+                    Button(action: advance) {
+                        Color.clear
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 190 * imageScale, height: 54 * imageScale)
+                    .position(
+                        x: imageOrigin.x + 201 * imageScale,
+                        y: imageOrigin.y + 517 * imageScale
+                    )
+                    .accessibilityLabel("Mulai")
+                    .accessibilityHint("Membuka pengingat keamanan sebelum pengalaman AR")
+                } else {
+                    VStack {
+                        Spacer()
+                            .frame(height: geometry.size.height * 0.35)
+
+                        OnboardingCard {
                             SafetyPage(onStart: advance)
                         }
-                    }
-                    // 299pt wide — matches the reference box spec exactly (capped against the
-                    // available width so it doesn't overflow on narrower devices). Height stays
-                    // content-hugging (OnboardingCard's own VStack), not forced to the reference's
-                    // 313 — that number was just Figma's auto-layout result for that exact content,
-                    // not an independent constraint worth risking clipped text over.
-                    .frame(width: min(299, geometry.size.width - 40))
+                        .frame(width: min(299, geometry.size.width - 40))
 
-                    // Spacer bawah fleksibel untuk mendorong kartu dari bawah
-                    Spacer()
+                        Spacer()
+                    }
                 }
             }
             .ignoresSafeArea()
@@ -104,7 +124,7 @@ private struct WelcomePage: View {
     let onStart: () -> Void
 
     var body: some View {
-        Text("ANT AR")
+        Text("AntAR")
             .font(.system(size: 34, weight: .heavy))
             .foregroundStyle(AntARTheme.bronzeDark)
 
