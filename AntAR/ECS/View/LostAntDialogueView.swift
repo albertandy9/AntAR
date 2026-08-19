@@ -14,7 +14,7 @@ struct LostAntDialogueView: View {
         case .waiting, .rising, .chatting:
             captionAtScanningTablePosition(text: "Dekatkan tanganmu ke semut")
         case .releasing, .returning:
-            CaptionPill(text: "Sekarang, turunkan tanganmu")
+            CaptionPill(text: "Sekarang turunkan tanganmu")
         case .arrived, .done, nil:
             EmptyView()
         }
