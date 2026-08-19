@@ -178,6 +178,12 @@ private struct GasPedal: View {
 private struct IRIntensityPanel: View {
     @Bindable var viewModel: ARExperienceViewModel
 
+    private static let panelWidth: CGFloat = 278
+    private static let horizontalPadding: CGFloat = 18
+    private static let minimumBarSpacing: CGFloat = 4
+    private static let preferredBarSpacing: CGFloat = 16
+    private static let preferredBarWidth: CGFloat = 32
+
     // Warna disesuaikan persis dengan eyedropper dari gambar desain
     private static let cardFill = Color(red: 114 / 255, green: 69 / 255, blue: 34 / 255)
     private static let cardShadow = Color(red: 56 / 255, green: 29 / 255, blue: 12 / 255) // Bayangan bawah
@@ -197,32 +203,58 @@ private struct IRIntensityPanel: View {
         }
     }
 
+    private var sensorCount: Int {
+        max(viewModel.irLineActivations.count, 1)
+    }
+
+    private var barWidth: CGFloat {
+        let availableWidth = Self.panelWidth - (Self.horizontalPadding * 2)
+        let totalMinimumSpacing = Self.minimumBarSpacing * CGFloat(max(sensorCount - 1, 0))
+        return min(
+            Self.preferredBarWidth,
+            (availableWidth - totalMinimumSpacing) / CGFloat(sensorCount)
+        )
+    }
+
+    private var barSpacing: CGFloat {
+        guard sensorCount > 1 else { return 0 }
+        let availableWidth = Self.panelWidth - (Self.horizontalPadding * 2)
+        let remainingWidth = availableWidth - (barWidth * CGFloat(sensorCount))
+        return min(
+            Self.preferredBarSpacing,
+            max(Self.minimumBarSpacing, remainingWidth / CGFloat(sensorCount - 1))
+        )
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             HStack {
                 Text("Infrared Activation Bar")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Self.titleColor)
-                    // Keeps it on one line like the reference instead of wrapping to two.
-                    .fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
 
                 Spacer(minLength: 12)
 
                 Text(routeStatus.text)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(routeStatus.color)
-                    // Was wrapping to "Not" / "Detected" once the title's fixedSize squeezed its
-                    // share of the row — same one-line fix as the title.
-                    .fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: barSpacing) {
                 ForEach(viewModel.irLineActivations.indices, id: \.self) { index in
-                    IRIntensityBar(activation: viewModel.irLineActivations[index])
+                    IRIntensityBar(
+                        activation: viewModel.irLineActivations[index],
+                        width: barWidth
+                    )
                 }
             }
         }
         .padding(EdgeInsets(top: 14, leading: 18, bottom: 14, trailing: 18))
+        .frame(width: Self.panelWidth)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(Self.cardFill)
@@ -235,6 +267,7 @@ private struct IRIntensityPanel: View {
 /// Kapsul tebal dengan titik kecil di atasnya, sesuai bentuk dari referensi gambar.
 private struct IRIntensityBar: View {
     let activation: Float
+    let width: CGFloat
 
     // Warna gelap pekat sesuai gambar (latar kapsul)
     private static let trackColor = Color(red: 56 / 255, green: 30 / 255, blue: 11 / 255)
@@ -262,7 +295,7 @@ private struct IRIntensityBar: View {
                         .frame(height: max(0, geometry.size.height * clampedActivation))
                 }
             }
-            .frame(width: 32, height: 72)
+            .frame(width: width, height: 72)
         }
     }
 }

@@ -15,15 +15,24 @@ public struct UFOControlComponent: Component, Codable {
     public var throttle: Float
     public var resetRequestID: UInt64
     public var handledResetRequestID: UInt64
+    /// Incremented when the authored route changes while the UFO is travelling. Unlike reset,
+    /// this asks the movement system to sample the route again without changing the UFO transform
+    /// or its current target.
+    public var routeChangeRequestID: UInt64
+    public var handledRouteChangeRequestID: UInt64
 
     public init(
         throttle: Float = 0,
         resetRequestID: UInt64 = 0,
-        handledResetRequestID: UInt64 = 0
+        handledResetRequestID: UInt64 = 0,
+        routeChangeRequestID: UInt64 = 0,
+        handledRouteChangeRequestID: UInt64 = 0
     ) {
         self.throttle = min(max(throttle, 0), 1)
         self.resetRequestID = resetRequestID
         self.handledResetRequestID = handledResetRequestID
+        self.routeChangeRequestID = routeChangeRequestID
+        self.handledRouteChangeRequestID = handledRouteChangeRequestID
     }
 
     public var isPedalPressed: Bool {
@@ -36,6 +45,11 @@ public struct UFOControlComponent: Component, Codable {
 
     public mutating func requestReset() {
         resetRequestID &+= 1
+        throttle = 0
+    }
+
+    public mutating func requestRouteReevaluation() {
+        routeChangeRequestID &+= 1
         throttle = 0
     }
 }

@@ -168,7 +168,6 @@ struct ContentView: View {
             }
 
             draggedPlacedBlockID = blockID
-            viewModel.setPlacedBlockDragActive(true, blockID: blockID)
         }
 
         guard draggedPlacedBlockID != nil else { return }
@@ -195,7 +194,6 @@ struct ContentView: View {
             .insetBy(dx: -24, dy: -24)
             .contains(globalLocation)
 
-        viewModel.setPlacedBlockDragActive(false, blockID: blockID)
         if shouldReturn {
             viewModel.returnPlacedBlockToInventory(blockID: blockID)
         }
@@ -217,6 +215,10 @@ struct ContentView: View {
         if viewModel.gameState.supportsRouteBuilding {
             if let tappedEntity = arView.entity(at: location) {
                 if viewModel.handleTravelUFOTapped(tappedEntity) { return }
+                if let blockID = viewModel.placedBlockID(containing: tappedEntity) {
+                    viewModel.togglePlacedBlockSelection(blockID: blockID)
+                    return
+                }
                 viewModel.handleBlockTapped(tappedEntity)
             }
             return

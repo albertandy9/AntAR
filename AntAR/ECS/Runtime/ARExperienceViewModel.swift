@@ -51,6 +51,7 @@ final class ARExperienceViewModel {
         repeating: nil,
         count: BlockPlacementConfig.dropSlotNames.count
     )
+    private(set) var selectedPlacedBlockID: String?
 
     var hasPlacedBlocks: Bool {
         placedBlockIDsBySlot.contains { $0 != nil }
@@ -725,6 +726,10 @@ final class ARExperienceViewModel {
         block.components.set(OpacityComponent(opacity: 1))
         block.isEnabled = true
         updatePlacementGuide()
+        if masterScene.findEntity(named: AntARSceneNames.travelUFO)?
+            .components[UFOPathFollowerComponent.self]?.state == .stalled {
+            requestRouteReevaluation()
+        }
         requestUFOTravel()
         reportRequiredPathPlacedIfReady()
     }
@@ -759,10 +764,28 @@ final class ARExperienceViewModel {
         return nil
     }
 
-    /// Visual acknowledgement while a placed block is being dragged toward the 2D inventory.
-    func setPlacedBlockDragActive(_ active: Bool, blockID: String) {
-        guard let block = masterScene?.findEntity(named: blockID) else { return }
-        block.components.set(OpacityComponent(opacity: active ? 0.52 : 1))
+    /// Gives a placed block a persistent visual selection before the learner drags it back.
+    /// Selecting a different block restores the previous one; tapping the same block toggles it.
+    func togglePlacedBlockSelection(blockID: String) {
+        guard placedBlockIDsBySlot.contains(where: { $0 == blockID }),
+              let masterScene,
+              let block = masterScene.findEntity(named: blockID) else {
+            return
+        }
+
+        if let selectedPlacedBlockID,
+           selectedPlacedBlockID != blockID,
+           let previousBlock = masterScene.findEntity(named: selectedPlacedBlockID) {
+            previousBlock.components.set(OpacityComponent(opacity: 1))
+        }
+
+        if selectedPlacedBlockID == blockID {
+            self.selectedPlacedBlockID = nil
+            block.components.set(OpacityComponent(opacity: 1))
+        } else {
+            selectedPlacedBlockID = blockID
+            block.components.set(OpacityComponent(opacity: 0.52))
+        }
     }
 
     /// Returns a placed scene entity to inventory without destroying it. Its authored entity,
@@ -777,6 +800,9 @@ final class ARExperienceViewModel {
         }
 
         placedBlockIDsBySlot[slotIndex] = nil
+        if selectedPlacedBlockID == blockID {
+            selectedPlacedBlockID = nil
+        }
         block.components.remove(PathTileComponent.self)
         block.components.remove(IRReflectanceComponent.self)
         block.components.set(OpacityComponent(opacity: 1))
@@ -787,9 +813,10 @@ final class ARExperienceViewModel {
         }
         updatePlacementGuide()
 
-        // Editing a live route safely resets the ECS-owned follower before another run.
+        // Editing a live route asks ECS to sample it again without changing the UFO's transform
+        // or current target. The dedicated reset button remains the only full route reset.
         if isTravelUFOReady, gameState.supportsRouteBuilding {
-            requestUFOReset()
+            requestRouteReevaluation()
         }
     }
 
@@ -839,6 +866,19 @@ final class ARExperienceViewModel {
         shouldPromptSensorInspectionWhenDialoguesFinish = false
         isAwaitingSensorInspectionTap = false
         ufoTapScreenPosition = nil
+    }
+
+    private func requestRouteReevaluation() {
+        guard isTravelUFOReady,
+              gameState.supportsRouteBuilding,
+              var control = gameDirector.components[UFOControlComponent.self] else {
+            return
+        }
+
+        control.requestRouteReevaluation()
+        gameDirector.components[UFOControlComponent.self] = control
+        isGasPedalPressed = false
+        ufoStallReason = nil
     }
 
     /// Requests the ECS inspection pose. The current pose is captured by UFOInspectionSystem;
