@@ -33,7 +33,7 @@ enum UFOTravelDialogue: String, Equatable, Sendable {
         case .noPath:
             [
                 "Sepertinya UFO belum bisa melanjutkan perjalanan...",
-                "Tidak ada balok di depan UFO. Yuk tambahkan balok jalur lagi."
+                "Jalur tidak terdeteksi karena belum ada balok di depan UFO atau warna baloknya terlalu terang."
             ]
         case .lightBlock:
             [

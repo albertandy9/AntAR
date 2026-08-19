@@ -102,7 +102,6 @@ struct DialogueAdvanceIndicator: View {
             .frame(width: 24, height: 24)
             .background(Circle().fill(Self.fill))
             .overlay(Circle().stroke(Self.ink, lineWidth: 2))
-            .shadow(color: Self.ink.opacity(0.75), radius: 0, y: 3)
     }
 }
 
