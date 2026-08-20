@@ -69,7 +69,11 @@ final class ARExperienceViewModel {
     }
 
     var canUseGasPedal: Bool {
-        canControlUFO
+        // The pedal is also the intentional trigger for the two pre-route conversations:
+        // no block collected yet, and blocks collected but none placed. Actual UFO movement
+        // remains protected by `canControlUFO` inside the ECS request path.
+        isTravelUFOReady
+            && gameState.supportsRouteBuilding
             && !isAwaitingSensorInspectionTap
             && !isInspectingUFO
             && !isFinishingUFOInspection
