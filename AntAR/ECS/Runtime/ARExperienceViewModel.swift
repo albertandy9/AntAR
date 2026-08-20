@@ -70,6 +70,9 @@ final class ARExperienceViewModel {
 
     var canUseGasPedal: Bool {
         canControlUFO
+            && !isAwaitingSensorInspectionTap
+            && !isInspectingUFO
+            && !isFinishingUFOInspection
     }
 
     // Not `private` — ContentView's tap handler needs `scannedTable.isAnchored` and its transform

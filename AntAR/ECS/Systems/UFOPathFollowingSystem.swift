@@ -125,7 +125,9 @@ public struct UFOPathFollowingSystem: System {
             // A block may be placed while the UFO is crossing the exposed end of the previous
             // one. Adopt it immediately instead of waiting for a line-loss stall first.
             if follower.isTraversingCurrentTileEnd,
-               tiles.contains(where: { $0.1.order == follower.currentTargetOrder + 1 }) {
+               tiles.contains(where: {
+                   $0.1.order == follower.currentTargetOrder + 1 && $0.2.isValidPath
+               }) {
                 follower.currentTargetOrder += 1
                 follower.isTraversingCurrentTileEnd = false
             }
@@ -176,12 +178,51 @@ public struct UFOPathFollowingSystem: System {
                 sample.0 && sample.1 >= IRLineFollowingPolicy.digitalThreshold
             }
             if let target = tiles.first(where: { $0.1.order == follower.currentTargetOrder }) {
+                let nextTarget = tiles.first(where: { $0.1.order == target.1.order + 1 })
+
                 // The ordered tile list already proves that a block exists in the next slot.
                 // Classify its authored IR material before applying the no-signal timeout;
                 // otherwise the short gap before the sensors physically overlap a bright block
                 // is incorrectly reported as an empty route.
                 if !target.2.isValidPath {
                     stall(&follower, reason: .lightBlockReflectsIR)
+                    ufo.components[UFOPathFollowerComponent.self] = follower
+                    continue
+                }
+
+                // Decide that the current block's centre has been crossed before sampling the
+                // next movement step. Without this ordering, a sensor can leave the dark surface
+                // on the same update and stall the chassis around the middle of the block.
+                let reachedTargetCentre = surfaceDistance(from: ufo, to: target.0)
+                    <= UFOPathFollowerComponent.arrivalDistance
+                if reachedTargetCentre,
+                   target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
+                    arrive(&follower, gameState: gameState, director: director)
+                    ufo.components[UFOPathFollowerComponent.self] = follower
+                    continue
+                }
+                if reachedTargetCentre, nextTarget?.2.isValidPath != true {
+                    // The next slot is either empty or reflective. Keep the current dark block as
+                    // the active target until its physical far edge, instead of switching to the
+                    // next order at the block centre.
+                    follower.isTraversingCurrentTileEnd = true
+                }
+
+                // Crossing from the exposed end of a dark block into empty space or a bright
+                // block is a hard geometric boundary. Snap the chassis centre to that authored
+                // edge before stalling so sensor placement, sensor count, and one noisy sample
+                // cannot leave the UFO visibly stranded halfway across the valid block.
+                if follower.isTraversingCurrentTileEnd,
+                   !decision.hasLine || isSamplingReflectiveTile {
+                    moveToFarEdge(of: target.0, tile: target.1, ufo: ufo)
+                    follower.currentTargetOrder = target.1.order + 1
+                    follower.isTraversingCurrentTileEnd = false
+                    stall(
+                        &follower,
+                        reason: nextTarget?.2.isValidPath == false
+                            ? .lightBlockReflectsIR
+                            : .noPath
+                    )
                     ufo.components[UFOPathFollowerComponent.self] = follower
                     continue
                 }
@@ -237,17 +278,10 @@ public struct UFOPathFollowingSystem: System {
 
                 // Route progress lives on the table plane. Comparing full 3D positions can never
                 // succeed because the UFO intentionally hovers well above each block.
-                if surfaceDistance(from: ufo, to: target.0)
-                    <= UFOPathFollowerComponent.arrivalDistance {
-                    if target.1.order >= BlockPlacementConfig.requiredPathBlockCount {
-                        arrive(&follower, gameState: gameState, director: director)
-                    } else if tiles.contains(where: { $0.1.order == target.1.order + 1 }) {
+                if reachedTargetCentre {
+                    if nextTarget?.2.isValidPath == true {
                         follower.currentTargetOrder += 1
                         follower.isTraversingCurrentTileEnd = false
-                    } else {
-                        // The next slot is empty, but half of this block is still ahead. Keep the
-                        // motors running and wait for real sensor line loss at its far edge.
-                        follower.isTraversingCurrentTileEnd = true
                     }
                 }
             } else {
@@ -399,6 +433,66 @@ public struct UFOPathFollowingSystem: System {
             SIMD2<Float>(sourcePosition.x, sourcePosition.z),
             SIMD2<Float>(destinationPosition.x, destinationPosition.z)
         )
+    }
+
+    /// Places the UFO centre at the leading edge of the current rectangular path tile while
+    /// preserving its lateral drift and hover height. The longer authored footprint axis is the
+    /// route axis; the current chassis heading selects which of its two ends is "forward."
+    private func moveToFarEdge(
+        of entity: Entity,
+        tile: PathTileComponent,
+        ufo: Entity
+    ) {
+        let worldPosition = ufo.position(relativeTo: nil)
+        var localPosition = entity.convert(position: worldPosition, from: nil)
+        let localCentre = SIMD3<Float>(
+            tile.footprintCenter.x,
+            localPosition.y,
+            tile.footprintCenter.y
+        )
+        let localXEnd = entity.convert(
+            position: localCentre + SIMD3<Float>(tile.footprintHalfExtents.x, 0, 0),
+            to: nil
+        )
+        let localZEnd = entity.convert(
+            position: localCentre + SIMD3<Float>(0, 0, tile.footprintHalfExtents.y),
+            to: nil
+        )
+        let worldCentre = entity.convert(position: localCentre, to: nil)
+        let xLength = surfaceDistance(from: worldCentre, to: localXEnd)
+        let zLength = surfaceDistance(from: worldCentre, to: localZEnd)
+
+        let forward3D = ufo.orientation(relativeTo: nil).act(SIMD3<Float>(0, 0, 1))
+        let forward = normalizedSurfaceDirection(SIMD2<Float>(forward3D.x, forward3D.z))
+
+        if zLength >= xLength {
+            let positiveEndDirection = normalizedSurfaceDirection(
+                SIMD2<Float>(localZEnd.x - worldCentre.x, localZEnd.z - worldCentre.z)
+            )
+            let sign: Float = simd_dot(forward, positiveEndDirection) >= 0 ? 1 : -1
+            localPosition.z = tile.footprintCenter.y + sign * tile.footprintHalfExtents.y
+        } else {
+            let positiveEndDirection = normalizedSurfaceDirection(
+                SIMD2<Float>(localXEnd.x - worldCentre.x, localXEnd.z - worldCentre.z)
+            )
+            let sign: Float = simd_dot(forward, positiveEndDirection) >= 0 ? 1 : -1
+            localPosition.x = tile.footprintCenter.x + sign * tile.footprintHalfExtents.x
+        }
+
+        let edgePosition = entity.convert(position: localPosition, to: nil)
+        ufo.setPosition(
+            SIMD3<Float>(edgePosition.x, worldPosition.y, edgePosition.z),
+            relativeTo: nil
+        )
+    }
+
+    private func surfaceDistance(from lhs: SIMD3<Float>, to rhs: SIMD3<Float>) -> Float {
+        simd_distance(SIMD2<Float>(lhs.x, lhs.z), SIMD2<Float>(rhs.x, rhs.z))
+    }
+
+    private func normalizedSurfaceDirection(_ direction: SIMD2<Float>) -> SIMD2<Float> {
+        let length = simd_length(direction)
+        return length > 0.000_001 ? direction / length : SIMD2<Float>(0, 1)
     }
 
     private func arrive(

@@ -30,7 +30,7 @@ struct UFOTravelControlsView: View {
                 // the HStack changed the stack width and visibly shifted the IR panel sideways.
                 GasPedal(
                     isPressed: viewModel.isGasPedalPressed,
-                    isEnabled: !viewModel.isInspectingUFO,
+                    isEnabled: viewModel.canUseGasPedal,
                     onPress: { viewModel.setGasPedalPressed(true) },
                     onRelease: { viewModel.setGasPedalPressed(false) }
                 )
